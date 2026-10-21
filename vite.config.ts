@@ -12,8 +12,11 @@ export default defineConfig({
       includeAssets: [
         'favicon-16x16.png',
         'favicon-32x32.png',
+        'favicon.ico',
+        'favicon.png',
         'apple-touch-icon.png',
         'icon-192.png',
+        'icon-maskable-192.png',
         'icon-512.png',
         'icon-maskable-512.png',
       ],
@@ -33,6 +36,12 @@ export default defineConfig({
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any',
+          },
+          {
+            src: '/icon-maskable-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
           },
           {
             src: '/icon-512.png',
