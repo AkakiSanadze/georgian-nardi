@@ -42,7 +42,7 @@ export const Dice3D: React.FC<Dice3DProps> = ({
   const safeVal = Math.max(1, Math.min(6, value || 1));
   const halfSize = size / 2;
 
-  // Gentle organic resting angle so the two dice don't look computer-rigid
+  // Gentle organic resting angle so the two dice look naturally scattered on the board
   const restingZ = useMemo(() => {
     const seed = (rollKey * 17 + rollIndex * 31) % 24;
     return rollIndex === 0 ? -12 + (seed % 10) : 10 + (seed % 14);
@@ -51,10 +51,9 @@ export const Dice3D: React.FC<Dice3DProps> = ({
   const targetRotation = FACE_ROTATIONS[safeVal] || { x: 0, y: 0 };
   const finalX = targetRotation.x;
   const finalY = targetRotation.y;
-  const finalZ = restingZ;
 
   // Render one face of the die
-  const renderFace = (faceVal: number, transformStyle: string) => {
+  const renderFace = (faceVal: number, transformStyle?: string) => {
     const activePips = PIP_MAP[faceVal] || [];
     const isOne = faceVal === 1;
 
@@ -65,6 +64,8 @@ export const Dice3D: React.FC<Dice3DProps> = ({
           width: `${size}px`,
           height: `${size}px`,
           transform: transformStyle,
+          WebkitBackfaceVisibility: 'hidden',
+          backfaceVisibility: 'hidden',
         }}
       >
         {Array.from({ length: 9 }).map((_, idx) => (
@@ -99,8 +100,8 @@ export const Dice3D: React.FC<Dice3DProps> = ({
 
   // Spin turns when rolling: add 2-3 full 360-degree rotations on all axes
   const initialSpinTurns = rollIndex === 0
-    ? { x: finalX + 720, y: finalY + 1080, z: finalZ + 360 }
-    : { x: finalX + 1080, y: finalY + 720, z: finalZ - 360 };
+    ? { x: finalX + 720, y: finalY + 1080, z: 360 }
+    : { x: finalX + 1080, y: finalY + 720, z: -360 };
 
   return (
     <div
@@ -130,58 +131,62 @@ export const Dice3D: React.FC<Dice3DProps> = ({
         style={{
           width: `${size}px`,
           height: `${size}px`,
-          translate: '0px',
-          rotate: '0deg',
-          scale: '1',
         }}
       >
-        {/* 3D Cube with 6 faces */}
+        {/* Tilt Container (Controls 2D natural tabletop rotation without Euler angle distortion) */}
         <div
-          key={`${rollKey}-${rollIndex}-${safeVal}`}
-          className="preserve-3d relative w-full h-full"
+          className="relative w-full h-full"
           style={{
-            transform: isRolling
-              ? undefined
-              : `rotateX(${finalX}deg) rotateY(${finalY}deg) rotateZ(${finalZ}deg)`,
-            animation: isRolling
-              ? `diceTumble${rollIndex} 0.75s var(--bounce-easing, cubic-bezier(0.2, 0.8, 0.4, 1)) forwards`
-              : undefined,
-            transition: isRolling ? undefined : 'transform 0.3s ease-out',
+            transform: `rotate(${isRolling ? 0 : restingZ}deg)`,
+            transition: isRolling ? undefined : 'transform 0.25s ease-out',
           }}
         >
-          {/* Dynamic keyframe rule for tumbling directly to target face */}
-          {isRolling && (
-            <style>
-              {`
-                @keyframes diceTumble${rollIndex} {
-                  0% {
-                    transform: rotateX(${initialSpinTurns.x}deg) rotateY(${initialSpinTurns.y}deg) rotateZ(${initialSpinTurns.z}deg);
+          {isRolling ? (
+            /* 3D Tumble Cube during active rolling roll */
+            <div
+              key={`${rollKey}-${rollIndex}-${safeVal}`}
+              className="preserve-3d relative w-full h-full"
+              style={{
+                animation: `diceTumble${rollIndex} 0.75s var(--bounce-easing, cubic-bezier(0.2, 0.8, 0.4, 1)) forwards`,
+              }}
+            >
+              <style>
+                {`
+                  @keyframes diceTumble${rollIndex} {
+                    0% {
+                      transform: rotateX(${initialSpinTurns.x}deg) rotateY(${initialSpinTurns.y}deg) rotateZ(${initialSpinTurns.z}deg);
+                    }
+                    100% {
+                      transform: rotateX(${finalX}deg) rotateY(${finalY}deg) rotateZ(0deg);
+                    }
                   }
-                  100% {
-                    transform: rotateX(${finalX}deg) rotateY(${finalY}deg) rotateZ(${finalZ}deg);
-                  }
-                }
-              `}
-            </style>
+                `}
+              </style>
+
+              {/* Face 1 (Front): Z + halfSize */}
+              {renderFace(1, `translateZ(${halfSize}px)`)}
+
+              {/* Face 6 (Back): Y 180deg, Z + halfSize */}
+              {renderFace(6, `rotateY(180deg) translateZ(${halfSize}px)`)}
+
+              {/* Face 2 (Right): Y 90deg, Z + halfSize */}
+              {renderFace(2, `rotateY(90deg) translateZ(${halfSize}px)`)}
+
+              {/* Face 5 (Left): Y -90deg, Z + halfSize */}
+              {renderFace(5, `rotateY(-90deg) translateZ(${halfSize}px)`)}
+
+              {/* Face 3 (Top): X 90deg, Z + halfSize */}
+              {renderFace(3, `rotateX(90deg) translateZ(${halfSize}px)`)}
+
+              {/* Face 4 (Bottom): X -90deg, Z + halfSize */}
+              {renderFace(4, `rotateX(-90deg) translateZ(${halfSize}px)`)}
+            </div>
+          ) : (
+            /* Pristine Landed Die: Renders exactly the winning face with 0 artifacts or side-face clipping */
+            <div className="relative w-full h-full">
+              {renderFace(safeVal)}
+            </div>
           )}
-
-          {/* Face 1 (Front): Z + halfSize */}
-          {renderFace(1, `translateZ(${halfSize}px)`)}
-
-          {/* Face 6 (Back): Y 180deg, Z + halfSize */}
-          {renderFace(6, `rotateY(180deg) translateZ(${halfSize}px)`)}
-
-          {/* Face 2 (Right): Y 90deg, Z + halfSize */}
-          {renderFace(2, `rotateY(90deg) translateZ(${halfSize}px)`)}
-
-          {/* Face 5 (Left): Y -90deg, Z + halfSize */}
-          {renderFace(5, `rotateY(-90deg) translateZ(${halfSize}px)`)}
-
-          {/* Face 3 (Top): X 90deg, Z + halfSize */}
-          {renderFace(3, `rotateX(90deg) translateZ(${halfSize}px)`)}
-
-          {/* Face 4 (Bottom): X -90deg, Z + halfSize */}
-          {renderFace(4, `rotateX(-90deg) translateZ(${halfSize}px)`)}
         </div>
       </div>
     </div>

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { AIDifficulty, GameMode, GameSettings, GameStats } from '../engine/types';
-import { BarChart3, Settings, Volume2, VolumeX, X, PlayCircle, Dices, Award, Smartphone } from 'lucide-react';
+import { BOARD_THEMES, THEME_ORDER } from '../engine/themes';
+import { haptics } from '../audio/haptics';
+import { BarChart3, Settings, Volume2, VolumeX, X, PlayCircle, Dices, Award, Smartphone, Palette, Check, Zap } from 'lucide-react';
 
 interface StatsAndSettingsModalProps {
   isOpen: boolean;
@@ -91,6 +93,85 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
         <div className="p-4 sm:p-6 overflow-y-auto allow-scroll flex-1 space-y-5 sm:space-y-6">
           {tab === 'SETTINGS' ? (
             <>
+              {/* Theme Selector Section */}
+              <div className="bg-black/30 p-3.5 sm:p-4 rounded-2xl border border-amber-900/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-amber-400" /> დაფის თემა და დიზაინი (5 თემა)
+                  </h3>
+                  <span className="text-[11px] text-amber-400/90 font-bold hidden sm:inline">
+                    {BOARD_THEMES[settings.boardTheme || 'CLASSIC_WALNUT']?.name}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
+                  {THEME_ORDER.map((tId) => {
+                    const themeConfig = BOARD_THEMES[tId];
+                    const isSelected = (settings.boardTheme || 'CLASSIC_WALNUT') === tId;
+
+                    return (
+                      <button
+                        key={tId}
+                        type="button"
+                        onClick={() => {
+                          onUpdateSettings({ boardTheme: tId });
+                          haptics.trigger('selection');
+                        }}
+                        className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
+                          isSelected
+                            ? 'bg-amber-500/20 border-amber-400 ring-1 ring-amber-400 shadow-md'
+                            : 'bg-black/40 border-amber-900/40 hover:bg-black/60 hover:border-amber-700/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="text-xl sm:text-2xl shrink-0">{themeConfig.badge}</span>
+                          <div className="flex flex-col min-w-0">
+                            <span className={`text-xs sm:text-sm font-black truncate ${isSelected ? 'text-amber-200' : 'text-amber-100'}`}>
+                              {themeConfig.name}
+                            </span>
+                            <span className="text-[10px] sm:text-[11px] text-amber-300/60 truncate">
+                              {themeConfig.subtitle}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          {/* 4-color palette swatch preview */}
+                          <div className="flex items-center -space-x-1.5 p-1 rounded-lg bg-black/60 border border-white/10 shadow-inner">
+                            <div
+                              className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-sm"
+                              style={{ backgroundColor: themeConfig.previewColors.frame }}
+                              title="ჩარჩო"
+                            />
+                            <div
+                              className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-sm"
+                              style={{ backgroundColor: themeConfig.previewColors.field }}
+                              title="მოედანი"
+                            />
+                            <div
+                              className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-sm"
+                              style={{ backgroundColor: themeConfig.previewColors.point }}
+                              title="ისარი"
+                            />
+                            <div
+                              className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-sm"
+                              style={{ backgroundColor: themeConfig.previewColors.accent }}
+                              title="ორნამენტი"
+                            />
+                          </div>
+
+                          {isSelected && (
+                            <div className="w-5 h-5 rounded-full bg-amber-400 text-black flex items-center justify-center font-bold">
+                              <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Audio & Haptics Settings */}
               <div className="bg-black/30 p-3.5 sm:p-4 rounded-2xl border border-amber-900/40 space-y-3">
                 <h3 className="text-xs sm:text-sm font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-2">
@@ -243,6 +324,30 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
                     }`}
                   >
                     {settings.showPointNumbers ? 'ქართული (1–6)' : 'სრული (1–24)'}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-amber-900/30">
+                  <div>
+                    <div className="text-xs sm:text-sm font-bold flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-amber-400" />
+                      <span>ავტომატური გამოსვლა (Auto Bear-Off)</span>
+                    </div>
+                    <div className="text-[11px] text-amber-300/60">
+                      როდესაც ყველა ქვა სახლშია, ავტო-გამოსვლა ავტომატურად გააქტიურდება
+                    </div>
+                  </div>
+                  <button
+                    onClick={() =>
+                      onUpdateSettings({ autoBearOff: !settings.autoBearOff })
+                    }
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
+                      settings.autoBearOff
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-black/50 text-amber-300/70 border border-amber-800/40'
+                    }`}
+                  >
+                    {settings.autoBearOff ? 'ჩართულია' : 'გამორთულია'}
                   </button>
                 </div>
 

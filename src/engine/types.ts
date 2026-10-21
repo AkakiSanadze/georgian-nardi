@@ -87,6 +87,13 @@ export interface RoundResult {
   reason: 'BEAR_OFF' | 'DAVI_DROP';
 }
 
+export type BoardThemeId =
+  | 'CLASSIC_WALNUT'
+  | 'ROYAL_EMERALD'
+  | 'EBONY_GOLD'
+  | 'COLCHIAN_WINE'
+  | 'CAUCASUS_MARBLE';
+
 export interface GameSettings {
   soundEnabled: boolean;
   soundVolume: number;
@@ -99,6 +106,7 @@ export interface GameSettings {
   showLegalTargets: boolean;
   autoBearOff: boolean;
   autoConfirmTurn?: boolean;
+  boardTheme?: BoardThemeId;
 }
 
 export interface GameStats {

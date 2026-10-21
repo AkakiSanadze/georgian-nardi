@@ -24,6 +24,7 @@ import {
 } from '../engine/constants';
 import {
   applySingleMove,
+  canBearOff,
   cloneBoard,
   generateLegalTurnSequences,
   getOpponent,
@@ -157,6 +158,9 @@ export function useGameStore() {
   const [hintSequence, setHintSequence] = useState<MoveSequence | null>(null);
   const [turnCompletedWaitingConfirm, setTurnCompletedWaitingConfirm] = useState<boolean>(false);
 
+  // Auto Play
+  const [isAutoPlay, setIsAutoPlay] = useState<boolean>(false);
+
   // Result
   const [lastRoundResult, setLastRoundResult] = useState<RoundResult | null>(null);
   const [historyLog, setHistoryLog] = useState<string[]>([]);
@@ -174,6 +178,7 @@ export function useGameStore() {
     unlockedCampaignRound,
     quickDifficulty,
     settings,
+    isAutoPlay,
   });
 
   useEffect(() => {
@@ -189,6 +194,7 @@ export function useGameStore() {
       unlockedCampaignRound,
       quickDifficulty,
       settings,
+      isAutoPlay,
     };
   });
 
@@ -255,6 +261,7 @@ export function useGameStore() {
     setHintSequence(null);
     setTurnCompletedWaitingConfirm(false);
     setLastRoundResult(null);
+    setIsAutoPlay(false);
 
     setDaviState({
       level: 0,
@@ -1066,6 +1073,143 @@ export function useGameStore() {
   }, [phase, turn]);
 
   /**
+   * Auto-activate auto-play when entering bear-off phase if setting is enabled
+   */
+  useEffect(() => {
+    if (
+      settings.autoBearOff &&
+      !isAutoPlay &&
+      (gameMode !== 'PASS_AND_PLAY' ? turn === 'WHITE' : true) &&
+      canBearOff(board, turn) &&
+      phase !== 'ROUND_OVER' &&
+      phase !== 'MATCH_OVER'
+    ) {
+      setIsAutoPlay(true);
+      addLog('⚡ ყველა ქვა სახლშია — ავტო-გამოსვლა გააქტიურდა!');
+    }
+  }, [settings.autoBearOff, isAutoPlay, board, turn, phase, gameMode, addLog]);
+
+  /**
+   * Human Auto-Play Engine
+   * Runs when isAutoPlay is true and it's human's turn (WHITE in vs AI, or current turn in Pass & Play).
+   */
+  useEffect(() => {
+    if (!isAutoPlay) return;
+    if (phase === 'ROUND_OVER' || phase === 'MATCH_OVER' || phase === 'DAVI_OFFERED') return;
+    if (gameMode !== 'PASS_AND_PLAY' && turn !== 'WHITE') return;
+
+    let isCancelled = false;
+
+    // 1. If waiting to roll: auto roll with natural delay
+    if (phase === 'WAITING_FOR_ROLL_OR_DAVI' && !isRolling) {
+      const timer = setTimeout(() => {
+        if (!isCancelled && isAutoPlay) {
+          rollDice();
+        }
+      }, 420);
+      return () => {
+        isCancelled = true;
+        clearTimeout(timer);
+      };
+    }
+
+    // 2. If turn is completed waiting for manual confirmation: auto confirm
+    if (turnCompletedWaitingConfirm) {
+      const timer = setTimeout(() => {
+        if (!isCancelled && isAutoPlay) {
+          handleConfirmTurn();
+        }
+      }, 300);
+      return () => {
+        isCancelled = true;
+        clearTimeout(timer);
+      };
+    }
+
+    // 3. If in MOVING phase: play best sequence
+    if (phase === 'MOVING' && !isRolling && diceRemaining.length > 0) {
+      const runAutoMoves = async () => {
+        await new Promise((r) => setTimeout(r, 360));
+        if (isCancelled) return;
+
+        const currentBInitial = stateRef.current.board;
+        const currentDiceInitial = stateRef.current.diceRemaining;
+        const currentTurn = stateRef.current.turn;
+        const forbidLock = !stateRef.current.settings.allowHitAndCoverInHome;
+
+        const sequences = generateLegalTurnSequences(
+          currentBInitial,
+          currentTurn,
+          currentDiceInitial,
+          forbidLock
+        );
+
+        if (sequences.length === 0) {
+          await new Promise((r) => setTimeout(r, 400));
+          if (isCancelled) return;
+          endTurn(currentBInitial, currentTurn);
+          return;
+        }
+
+        const bestSeq = chooseBestMoveSequence(
+          currentBInitial,
+          currentTurn,
+          sequences,
+          'GRANDMASTER'
+        );
+
+        if (!bestSeq || bestSeq.moves.length === 0) {
+          endTurn(currentBInitial, currentTurn);
+          return;
+        }
+
+        let currentB = currentBInitial;
+        const currentDiceRem = [...currentDiceInitial];
+
+        for (let i = 0; i < bestSeq.moves.length; i++) {
+          await new Promise((r) => setTimeout(r, 420));
+          if (isCancelled) return;
+
+          const m = bestSeq.moves[i];
+          currentB = applySingleMove(currentB, currentTurn, m, forbidLock);
+
+          const dIdx = currentDiceRem.indexOf(m.dieUsed);
+          if (dIdx !== -1) {
+            currentDiceRem.splice(dIdx, 1);
+          }
+
+          setBoard(currentB);
+          setDiceRemaining([...currentDiceRem]);
+          playMoveSoundAndLog(m);
+
+          if (isRoundWon(currentB, currentTurn)) {
+            handleRoundVictory(currentB, currentTurn);
+            return;
+          }
+        }
+
+        await new Promise((r) => setTimeout(r, 350));
+        if (isCancelled) return;
+        endTurn(currentB, currentTurn);
+      };
+
+      runAutoMoves();
+
+      return () => {
+        isCancelled = true;
+      };
+    }
+  }, [
+    isAutoPlay,
+    phase,
+    turn,
+    isRolling,
+    diceRemaining,
+    turnCompletedWaitingConfirm,
+    gameMode,
+  ]);
+
+  /**
    * AI response when human offers Davi
    */
   useEffect(() => {
@@ -1096,6 +1240,22 @@ export function useGameStore() {
       ? Array.from(getMovableSourcePoints(board, turn, diceRemaining))
       : [];
 
+  const isBearingOff = canBearOff(board, turn);
+
+  const toggleAutoPlay = useCallback(() => {
+    setIsAutoPlay((prev) => {
+      const next = !prev;
+      haptics.trigger('selection');
+      sounds.playClick();
+      if (next) {
+        addLog('⚡ ავტომატური თამაში ჩაირთო.');
+      } else {
+        addLog('⏸️ ავტომატური თამაში გაჩერდა.');
+      }
+      return next;
+    });
+  }, [addLog]);
+
   return {
     // State
     board,
@@ -1123,6 +1283,8 @@ export function useGameStore() {
     quickTargetScore,
     settings,
     stats,
+    isAutoPlay,
+    isBearingOff,
 
     // Actions
     rollDice,
@@ -1142,5 +1304,7 @@ export function useGameStore() {
     setCurrentCampaignRound,
     setQuickDifficulty,
     setQuickTargetScore,
+    toggleAutoPlay,
+    setIsAutoPlay,
   };
 }

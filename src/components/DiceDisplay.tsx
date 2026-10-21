@@ -1,5 +1,14 @@
 import React from 'react';
-import { Dices, CheckCircle, RotateCcw, Lightbulb, MessageSquare, ChevronUp, ChevronDown } from 'lucide-react';
+import {
+  Dices,
+  CheckCircle,
+  RotateCcw,
+  Lightbulb,
+  MessageSquare,
+  ChevronUp,
+  ChevronDown,
+  Zap,
+} from 'lucide-react';
 
 interface DiceDisplayProps {
   dice: [number, number] | null;
@@ -20,6 +29,9 @@ interface DiceDisplayProps {
   historyCount?: number;
   isHistoryOpen?: boolean;
   onToggleHistory?: () => void;
+  isAutoPlay?: boolean;
+  canBearOff?: boolean;
+  onToggleAutoPlay?: () => void;
 }
 
 export const DiceDisplay: React.FC<DiceDisplayProps> = ({
@@ -41,6 +53,9 @@ export const DiceDisplay: React.FC<DiceDisplayProps> = ({
   historyCount = 0,
   isHistoryOpen = false,
   onToggleHistory,
+  isAutoPlay = false,
+  canBearOff = false,
+  onToggleAutoPlay,
 }) => {
   // Renders the 9-dot grid for standard 6-sided die
   const renderPipGrid = (val: number) => {
@@ -198,8 +213,52 @@ export const DiceDisplay: React.FC<DiceDisplayProps> = ({
         ) : null}
       </div>
 
-      {/* Right Slot: History Toggle */}
-      <div className="flex items-center justify-end min-w-[70px] sm:min-w-[120px]">
+      {/* Right Slot: Auto Play & History Toggle */}
+      <div className="flex items-center justify-end gap-1 sm:gap-1.5 min-w-[70px] sm:min-w-[130px]">
+        {/* Auto Play Toggle Button */}
+        {onToggleAutoPlay && (
+          <button
+            onClick={(e) => {
+              (e.currentTarget as HTMLElement).blur();
+              onToggleAutoPlay();
+            }}
+            className={`px-2 py-1.5 rounded-xl border text-[11px] sm:text-xs font-bold flex items-center gap-1 transition active:scale-95 ${
+              isAutoPlay
+                ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white border-emerald-300 shadow-[0_0_14px_rgba(16,185,129,0.6)] ring-1 ring-emerald-300'
+                : canBearOff
+                ? 'bg-amber-500/25 border-amber-400 text-amber-200 animate-pulse shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+                : 'bg-amber-950/60 hover:bg-amber-900/70 border-amber-800/40 text-amber-300/80 hover:text-amber-200'
+            }`}
+            title={
+              isAutoPlay
+                ? 'ავტომატური თამაშის გაჩერება'
+                : canBearOff
+                ? 'ყველა ქვა სახლშია — ჩართე ავტო-გამოსვლა'
+                : 'ავტომატური თამაშის ჩართვა (ავტო-სვლა)'
+            }
+          >
+            <Zap
+              className={`w-3.5 h-3.5 ${
+                isAutoPlay
+                  ? 'text-yellow-300 fill-current animate-pulse'
+                  : canBearOff
+                  ? 'text-amber-400 fill-amber-400/50'
+                  : 'text-amber-400'
+              }`}
+            />
+            <span className="whitespace-nowrap">
+              {isAutoPlay ? (
+                <>
+                  <span className="hidden min-[420px]:inline">ავტო: </span>ჩართ.
+                </>
+              ) : (
+                'ავტო'
+              )}
+            </span>
+          </button>
+        )}
+
+        {/* History Toggle */}
         {onToggleHistory && (
           <button
             onClick={onToggleHistory}
@@ -207,7 +266,7 @@ export const DiceDisplay: React.FC<DiceDisplayProps> = ({
             title="სვლების ისტორია"
           >
             <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden min-[420px]:inline">
+            <span className="hidden min-[500px]:inline">
               ისტორია{historyCount > 0 ? ` (${historyCount})` : ''}
             </span>
             {isHistoryOpen ? (

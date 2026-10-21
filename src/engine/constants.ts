@@ -235,6 +235,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   showPointNumbers: true,
   showLegalTargets: true,
   autoBearOff: false,
+  boardTheme: 'CLASSIC_WALNUT',
 };
 
 export const DEFAULT_STATS: GameStats = {

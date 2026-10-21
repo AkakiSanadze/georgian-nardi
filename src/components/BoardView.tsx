@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { BoardState, Player } from '../engine/types';
-import { Lock, Sparkles, ArrowUpRight } from 'lucide-react';
+import { BoardThemeId, BOARD_THEMES } from '../engine/themes';
+import { Lock, Sparkles, ArrowUpRight, Zap } from 'lucide-react';
 import { Dice3DPair } from './Dice3D';
 import { haptics } from '../audio/haptics';
 
@@ -19,6 +20,10 @@ interface BoardViewProps {
   isRolling: boolean;
   rollKey?: number;
   canRoll?: boolean;
+  themeId?: BoardThemeId;
+  isAutoPlay?: boolean;
+  canBearOffPhase?: boolean;
+  onToggleAutoPlay?: () => void;
   onRoll?: () => void;
   onPointClick: (point: number | 'BAR') => void;
   onPointDoubleClick: (point: number | 'BAR') => void;
@@ -40,11 +45,16 @@ export const BoardView: React.FC<BoardViewProps> = ({
   isRolling,
   rollKey = 0,
   canRoll = false,
+  themeId = 'CLASSIC_WALNUT',
+  isAutoPlay = false,
+  canBearOffPhase = false,
+  onToggleAutoPlay,
   onRoll,
   onPointClick,
   onPointDoubleClick,
   onBearOffClick,
 }) => {
+  const theme = BOARD_THEMES[themeId] || BOARD_THEMES.CLASSIC_WALNUT;
   // Traditional Georgian board points mapping:
   // Left wing (Court 1):
   // Top: Points 13..18 (left to right) -> Indices [12, 13, 14, 15, 16, 17]
@@ -180,6 +190,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
       pointIdx: number | 'BAR'
     ) => {
       const isWhite = owner === 'WHITE';
+      const checkerConfig = isWhite ? theme.checkers.white : theme.checkers.black;
       const isTopOfStack = index === Math.min(totalCount, 5) - 1;
 
       // Stacking offset calculation: checkers touch edge-to-edge and overlap with ZERO gaps!
@@ -200,11 +211,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
           onPointerUp={handlePointerUpChecker}
           className={`w-[var(--checker-size,2rem)] h-[var(--checker-size,2rem)] rounded-full absolute left-1/2 -translate-x-1/2 flex items-center justify-center select-none ${
             isTopOfStack && isMovableTopChecker ? 'cursor-grab active:cursor-grabbing touch-none' : ''
-          } ${
-            isWhite
-              ? 'bg-gradient-to-br from-[#ffffff] via-[#f7f1e5] to-[#dccab0] border border-[#b09b7e] sm:border-2 shadow-[0_2px_6px_rgba(0,0,0,0.55),inset_0_1.5px_3px_rgba(255,255,255,0.95)] text-[#3b2a1a]'
-              : 'bg-gradient-to-br from-[#593e2e] via-[#382214] to-[#1a0d06] border border-[#704d37] sm:border-2 shadow-[0_2px_6px_rgba(0,0,0,0.75),inset_0_1.5px_2.5px_rgba(255,255,255,0.22)] text-[#e8dacb]'
-          } ${isHinted ? 'ring-2 sm:ring-4 ring-yellow-400 animate-pulse' : ''} ${
+          } ${checkerConfig.gradientClass} ${isHinted ? 'ring-2 sm:ring-4 ring-yellow-400 animate-pulse' : ''} ${
             isLocked ? 'ring-2 ring-red-500' : ''
           } ${
             isSelectedTopChecker
@@ -219,19 +226,13 @@ export const BoardView: React.FC<BoardViewProps> = ({
         >
           {/* Lathe concentric wood-rings */}
           <div
-            className={`w-[70%] h-[70%] rounded-full border flex items-center justify-center opacity-75 ${
-              isWhite ? 'border-[#bfa888]' : 'border-[#8a6245]'
-            }`}
+            className={`w-[70%] h-[70%] rounded-full border flex items-center justify-center opacity-75 ${checkerConfig.outerRingBorder}`}
           >
             <div
-              className={`w-[60%] h-[60%] rounded-full border flex items-center justify-center ${
-                isWhite ? 'border-[#bfa888] bg-[#efe3d2]' : 'border-[#785338] bg-[#29170c]'
-              }`}
+              className={`w-[60%] h-[60%] rounded-full border flex items-center justify-center ${checkerConfig.innerCircleBorder} ${checkerConfig.innerCircleBg}`}
             >
               <div
-                className={`w-1 h-1 rounded-full ${
-                  isWhite ? 'bg-[#a88e6b]' : 'bg-[#9c7252]'
-                }`}
+                className={`w-1 h-1 rounded-full ${checkerConfig.dotBg}`}
               />
             </div>
           </div>
@@ -250,7 +251,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
         </div>
       );
     },
-    [dragState, movableSourcePoints, turn]
+    [dragState, movableSourcePoints, turn, theme]
   );
 
   // Authentic Georgian Spearhead Point (ისარი)
@@ -285,10 +286,10 @@ export const BoardView: React.FC<BoardViewProps> = ({
       >
         {/* Scalloped Arch Carved Into Rail */}
         <div
-          className={`absolute inset-x-0.5 h-4 sm:h-6 bg-gradient-to-b from-[#b8864e]/45 to-[#d8ad75]/15 border-x border-[#7a4e25]/35 pointer-events-none ${
+          className={`absolute inset-x-0.5 h-4 sm:h-6 ${theme.pointSvg.scallopArchBg} border-x ${theme.pointSvg.scallopArchBorder} pointer-events-none ${
             isTop
-              ? 'top-0 rounded-b-full border-b border-[#7a4e25]/40 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]'
-              : 'bottom-0 rounded-t-full border-t border-[#7a4e25]/40 shadow-[inset_0_-2px_4px_rgba(0,0,0,0.3)]'
+              ? 'top-0 rounded-b-full border-b shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]'
+              : 'bottom-0 rounded-t-full border-t shadow-[inset_0_-2px_4px_rgba(0,0,0,0.3)]'
           }`}
         />
 
@@ -302,17 +303,17 @@ export const BoardView: React.FC<BoardViewProps> = ({
             <g>
               <polygon
                 points={`16,${baseCy} 44,${baseCy} 30,${tipY}`}
-                fill="#1a110b"
-                stroke="#120a06"
+                fill={theme.pointSvg.baseFill}
+                stroke={theme.pointSvg.baseStroke}
                 strokeWidth="1"
               />
-              <circle cx="30" cy={baseCy} r="13" fill="#1a110b" stroke="#2e1a0e" strokeWidth="1" />
-              <circle cx="30" cy={baseCy} r="9" fill="#e2b982" stroke="#1a110b" strokeWidth="1" />
+              <circle cx="30" cy={baseCy} r="13" fill={theme.pointSvg.outerCircleFill} stroke={theme.pointSvg.outerCircleStroke} strokeWidth="1" />
+              <circle cx="30" cy={baseCy} r="9" fill={theme.pointSvg.innerCircleFill} stroke={theme.pointSvg.innerCircleStroke} strokeWidth="1" />
               <text
                 x="30"
                 y={baseCy + 3.5}
                 textAnchor="middle"
-                fill="#1a110b"
+                fill={theme.pointSvg.numberFill}
                 fontSize="10"
                 fontWeight="900"
                 fontFamily="serif"
@@ -322,13 +323,13 @@ export const BoardView: React.FC<BoardViewProps> = ({
               <polygon
                 points={`30,${baseCy + 18} 33,${baseCy + 25} 30,${baseCy + 32} 27,${baseCy + 25}`}
                 fill="none"
-                stroke="#d8ad75"
+                stroke={theme.pointSvg.filigreeStroke}
                 strokeWidth="1.2"
               />
               <polygon
                 points={`30,${baseCy + 38} 32.5,${baseCy + 45} 30,${baseCy + 52} 27.5,${baseCy + 45}`}
                 fill="none"
-                stroke="#d8ad75"
+                stroke={theme.pointSvg.filigreeStroke}
                 strokeWidth="1.1"
               />
               <line
@@ -336,26 +337,26 @@ export const BoardView: React.FC<BoardViewProps> = ({
                 y1={baseCy + 56}
                 x2="30"
                 y2={tipY - 12}
-                stroke="#d8ad75"
+                stroke={theme.pointSvg.filigreeStroke}
                 strokeWidth="1"
-                opacity="0.8"
+                opacity={theme.pointSvg.filigreeOpacity}
               />
             </g>
           ) : (
             <g>
               <polygon
                 points={`16,${baseCy} 44,${baseCy} 30,${tipY}`}
-                fill="#1a110b"
-                stroke="#120a06"
+                fill={theme.pointSvg.baseFill}
+                stroke={theme.pointSvg.baseStroke}
                 strokeWidth="1"
               />
-              <circle cx="30" cy={baseCy} r="13" fill="#1a110b" stroke="#2e1a0e" strokeWidth="1" />
-              <circle cx="30" cy={baseCy} r="9" fill="#e2b982" stroke="#1a110b" strokeWidth="1" />
+              <circle cx="30" cy={baseCy} r="13" fill={theme.pointSvg.outerCircleFill} stroke={theme.pointSvg.outerCircleStroke} strokeWidth="1" />
+              <circle cx="30" cy={baseCy} r="9" fill={theme.pointSvg.innerCircleFill} stroke={theme.pointSvg.innerCircleStroke} strokeWidth="1" />
               <text
                 x="30"
                 y={baseCy + 3.5}
                 textAnchor="middle"
-                fill="#1a110b"
+                fill={theme.pointSvg.numberFill}
                 fontSize="10"
                 fontWeight="900"
                 fontFamily="serif"
@@ -365,13 +366,13 @@ export const BoardView: React.FC<BoardViewProps> = ({
               <polygon
                 points={`30,${baseCy - 18} 33,${baseCy - 25} 30,${baseCy - 32} 27,${baseCy - 25}`}
                 fill="none"
-                stroke="#d8ad75"
+                stroke={theme.pointSvg.filigreeStroke}
                 strokeWidth="1.2"
               />
               <polygon
                 points={`30,${baseCy - 38} 32.5,${baseCy - 45} 30,${baseCy - 52} 27.5,${baseCy - 45}`}
                 fill="none"
-                stroke="#d8ad75"
+                stroke={theme.pointSvg.filigreeStroke}
                 strokeWidth="1.1"
               />
               <line
@@ -379,9 +380,9 @@ export const BoardView: React.FC<BoardViewProps> = ({
                 y1={baseCy - 56}
                 x2="30"
                 y2={tipY + 12}
-                stroke="#d8ad75"
+                stroke={theme.pointSvg.filigreeStroke}
                 strokeWidth="1"
-                opacity="0.8"
+                opacity={theme.pointSvg.filigreeOpacity}
               />
             </g>
           )}
@@ -462,21 +463,21 @@ export const BoardView: React.FC<BoardViewProps> = ({
   // Traditional Georgian Central Floral Palmette Medallion
   const renderCentralMedallion = (showDiceHere: boolean) => (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-      <svg viewBox="0 0 220 290" className="w-28 sm:w-40 md:w-48 h-auto opacity-80">
-        <ellipse cx="110" cy="145" rx="86" ry="122" fill="none" stroke="#1a110b" strokeWidth="6" />
-        <ellipse cx="110" cy="145" rx="74" ry="110" fill="none" stroke="#1a110b" strokeWidth="2" />
+      <svg viewBox="0 0 220 290" className={`w-28 sm:w-40 md:w-48 h-auto ${theme.medallionSvg.opacity}`}>
+        <ellipse cx="110" cy="145" rx="86" ry="122" fill="none" stroke={theme.medallionSvg.outerRingStroke} strokeWidth="6" />
+        <ellipse cx="110" cy="145" rx="74" ry="110" fill="none" stroke={theme.medallionSvg.innerRingStroke} strokeWidth="2" />
 
         {/* Top Palmette */}
         <g transform="translate(110, 86)">
-          <path d="M 0,-50 L 14,-24 L 0,2 L -14,-24 Z" fill="#1a110b" />
-          <path d="M 0,-38 L 7,-24 L 0,-10 L -7,-24 Z" fill="#e6be8a" />
-          <rect x="-18" y="4" width="36" height="5.5" rx="2" fill="#1a110b" />
+          <path d="M 0,-50 L 14,-24 L 0,2 L -14,-24 Z" fill={theme.medallionSvg.primaryFill} />
+          <path d="M 0,-38 L 7,-24 L 0,-10 L -7,-24 Z" fill={theme.medallionSvg.accentFill} />
+          <rect x="-18" y="4" width="36" height="5.5" rx="2" fill={theme.medallionSvg.primaryFill} />
         </g>
         {/* Bottom Palmette */}
         <g transform="translate(110, 204) scale(1, -1)">
-          <path d="M 0,-50 L 14,-24 L 0,2 L -14,-24 Z" fill="#1a110b" />
-          <path d="M 0,-38 L 7,-24 L 0,-10 L -7,-24 Z" fill="#e6be8a" />
-          <rect x="-18" y="4" width="36" height="5.5" rx="2" fill="#1a110b" />
+          <path d="M 0,-50 L 14,-24 L 0,2 L -14,-24 Z" fill={theme.medallionSvg.primaryFill} />
+          <path d="M 0,-38 L 7,-24 L 0,-10 L -7,-24 Z" fill={theme.medallionSvg.accentFill} />
+          <rect x="-18" y="4" width="36" height="5.5" rx="2" fill={theme.medallionSvg.primaryFill} />
         </g>
       </svg>
 
@@ -516,20 +517,49 @@ export const BoardView: React.FC<BoardViewProps> = ({
       className="board-touch-surface relative w-full h-full max-w-5xl mx-auto flex flex-col justify-between select-none px-0.5 sm:px-1"
     >
       {/* Handcrafted Natural Georgian Wooden Case */}
-      <div className="p-1 sm:p-2.5 md:p-3.5 rounded-2xl bg-gradient-to-br from-[#c99b68] via-[#dfb685] to-[#b0804d] border-2 sm:border-[8px] border-[#8c5f32] shadow-[0_16px_40px_rgba(0,0,0,0.8),inset_0_2px_6px_rgba(255,255,255,0.4)] relative flex-1 flex flex-col justify-between overflow-hidden">
+      <div className={`p-1 sm:p-2.5 md:p-3.5 rounded-2xl ${theme.caseContainerClass} border-2 sm:border-[8px] shadow-[0_16px_40px_rgba(0,0,0,0.8),inset_0_2px_6px_rgba(255,255,255,0.4)] relative flex-1 flex flex-col justify-between overflow-hidden`}>
         {/* Inner Playing Board - Two Symmetrical Wooden Wings */}
-        <div className="relative flex-1 flex rounded-xl bg-[#e6be8a] border-2 sm:border-4 border-[#6e441f] shadow-[inset_0_4px_25px_rgba(0,0,0,0.45)] overflow-hidden min-h-[280px]">
+        <div className={`relative flex-1 flex rounded-xl ${theme.innerFieldBgClass} border-2 sm:border-4 ${theme.innerFieldBorderClass} shadow-[inset_0_4px_25px_rgba(0,0,0,0.45)] overflow-hidden min-h-[280px]`}>
+          {/* Floating Auto-Play Status Chip / Bear-Off Suggestion */}
+          {isAutoPlay ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleAutoPlay?.();
+              }}
+              className="absolute top-2 left-1/2 -translate-x-1/2 z-40 px-3 py-1 rounded-full bg-emerald-950/95 border border-emerald-400 text-emerald-200 text-[10px] sm:text-xs font-bold shadow-[0_4px_16px_rgba(0,0,0,0.6)] flex items-center gap-1.5 backdrop-blur-md animate-pulse hover:bg-red-950 hover:border-red-400 hover:text-red-200 active:scale-95 transition pointer-events-auto cursor-pointer"
+              title="დააჭირე ავტო-თამაშის გასაჩერებლად"
+            >
+              <Zap className="w-3.5 h-3.5 text-yellow-300 fill-current animate-bounce" />
+              <span>ავტო-თამაში აქტიურია (დააჭირე გასაჩერებლად)</span>
+            </button>
+          ) : canBearOffPhase && turn === 'WHITE' ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleAutoPlay?.();
+              }}
+              className="absolute top-2 left-1/2 -translate-x-1/2 z-40 px-3 py-1 rounded-full bg-amber-950/95 border border-amber-400 text-amber-200 text-[10px] sm:text-xs font-bold shadow-[0_4px_16px_rgba(0,0,0,0.6)] flex items-center gap-1.5 backdrop-blur-md animate-pulse hover:bg-amber-900 active:scale-95 transition pointer-events-auto cursor-pointer"
+              title="ჩართე ავტომატური გამოსვლა"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>ყველა ქვა სახლშია — ჩართე ავტო-გამოსვლა ⚡</span>
+            </button>
+          ) : null}
+
           {/* ================= LEFT WING (COURT 1) ================= */}
           <div
             onClick={() => {
               if (canRoll && turn === 'WHITE' && onRoll) onRoll();
             }}
-            className={`flex-1 relative flex flex-col justify-between p-0.5 sm:p-1.5 bg-gradient-to-b from-[#dfB47c] via-[#eac593] to-[#dfB47c] ${
+            className={`flex-1 relative flex flex-col justify-between p-0.5 sm:p-1.5 ${theme.wingGradientClass} ${
               canRoll && turn === 'WHITE' ? 'cursor-pointer hover:brightness-105 transition-all' : ''
             }`}
             style={{
               backgroundImage:
-                'repeating-linear-gradient(90deg, rgba(120,72,30,0.04) 0px, rgba(120,72,30,0.04) 2px, transparent 2px, transparent 8px)',
+                `repeating-linear-gradient(90deg, ${theme.wingPatternColor} 0px, ${theme.wingPatternColor} 2px, transparent 2px, transparent 8px)`,
             }}
           >
             {renderCentralMedallion(turn === 'WHITE')}
@@ -546,12 +576,12 @@ export const BoardView: React.FC<BoardViewProps> = ({
           </div>
 
           {/* ================= CENTRAL WOODEN HINGE BAR (შუა ხარი) ================= */}
-          <div className="w-7 sm:w-10 md:w-12 bg-gradient-to-r from-[#b58450] via-[#d4a572] to-[#b58450] border-x sm:border-x-2 border-[#6e441f] flex flex-col items-center justify-between py-2 sm:py-4 relative shadow-[0_0_12px_rgba(0,0,0,0.5)] z-20 shrink-0">
+          <div className={`w-7 sm:w-10 md:w-12 ${theme.barClass} border-x sm:border-x-2 flex flex-col items-center justify-between py-2 sm:py-4 relative shadow-[0_0_12px_rgba(0,0,0,0.5)] z-20 shrink-0`}>
             {/* Center Folding Seam Line */}
             <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-[#4a2c11]/70 pointer-events-none" />
 
             {/* Top Metallic Hinge */}
-            <div className="relative z-10 w-5 sm:w-6 h-6 sm:h-7 bg-gradient-to-b from-[#d8d4c8] via-[#b8b2a2] to-[#8c8576] rounded-sm border border-[#4a443b] shadow-sm flex flex-col items-center justify-between p-0.5">
+            <div className={`relative z-10 w-5 sm:w-6 h-6 sm:h-7 ${theme.hingeClass} rounded-sm border shadow-sm flex flex-col items-center justify-between p-0.5`}>
               <div className="flex justify-between w-full">
                 <div className="w-1 h-1 rounded-full bg-[#332f29]" />
                 <div className="w-1 h-1 rounded-full bg-[#332f29]" />
@@ -627,7 +657,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
             </div>
 
             {/* Bottom Metallic Hinge */}
-            <div className="relative z-10 w-5 sm:w-6 h-6 sm:h-7 bg-gradient-to-b from-[#d8d4c8] via-[#b8b2a2] to-[#8c8576] rounded-sm border border-[#4a443b] shadow-sm flex flex-col items-center justify-between p-0.5">
+            <div className={`relative z-10 w-5 sm:w-6 h-6 sm:h-7 ${theme.hingeClass} rounded-sm border shadow-sm flex flex-col items-center justify-between p-0.5`}>
               <div className="flex justify-between w-full">
                 <div className="w-1 h-1 rounded-full bg-[#332f29]" />
                 <div className="w-1 h-1 rounded-full bg-[#332f29]" />
@@ -645,12 +675,12 @@ export const BoardView: React.FC<BoardViewProps> = ({
             onClick={() => {
               if (canRoll && turn === 'BLACK' && onRoll) onRoll();
             }}
-            className={`flex-1 relative flex flex-col justify-between p-0.5 sm:p-1.5 bg-gradient-to-b from-[#dfB47c] via-[#eac593] to-[#dfB47c] ${
+            className={`flex-1 relative flex flex-col justify-between p-0.5 sm:p-1.5 ${theme.wingGradientClass} ${
               canRoll && turn === 'BLACK' ? 'cursor-pointer hover:brightness-105 transition-all' : ''
             }`}
             style={{
               backgroundImage:
-                'repeating-linear-gradient(90deg, rgba(120,72,30,0.04) 0px, rgba(120,72,30,0.04) 2px, transparent 2px, transparent 8px)',
+                `repeating-linear-gradient(90deg, ${theme.wingPatternColor} 0px, ${theme.wingPatternColor} 2px, transparent 2px, transparent 8px)`,
             }}
           >
             {renderCentralMedallion(turn === 'BLACK')}
@@ -668,7 +698,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
         </div>
 
         {/* Bottom Gutter Bar: Locked Height, Zero-Shift Bear-Off Trays */}
-        <div className="h-7 sm:h-8 mt-1 border-t border-[#7a4e25]/40 flex items-center justify-between px-1 sm:px-2 text-[10px] sm:text-xs font-bold text-[#3b200c] shrink-0">
+        <div className={`h-7 sm:h-8 mt-1 border-t ${theme.troughBorderClass} flex items-center justify-between px-1 sm:px-2 text-[10px] sm:text-xs font-bold ${theme.troughTextClass} shrink-0`}>
           {/* Black Bear-Off Tray */}
           <div
             data-bear-off-zone="BLACK"
@@ -678,14 +708,14 @@ export const BoardView: React.FC<BoardViewProps> = ({
             className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg transition-all ${
               turn === 'BLACK' && canBearOffActive
                 ? 'bg-emerald-600 text-white shadow ring-2 ring-emerald-300 animate-pulse cursor-pointer'
-                : 'bg-[#2a1608] text-amber-200 border border-[#5c3a1b]'
+                : `${theme.troughBlackClass}`
             }`}
           >
             <span>⚫ შავი:</span>
             <span className="font-black">{board.borneOff.BLACK} / 15</span>
           </div>
 
-          <div className="text-[10px] text-[#4a2b11]/80 font-semibold hidden md:inline">
+          <div className="text-[10px] opacity-75 font-semibold hidden md:inline">
             💡 ერთი შეხება / გადათრევა — სვლა • ორმაგი შეხება — სწრაფი სვლა
           </div>
 
@@ -698,7 +728,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
             className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg transition-all ${
               turn === 'WHITE' && canBearOffActive
                 ? 'bg-emerald-600 text-white shadow ring-2 ring-emerald-300 animate-pulse cursor-pointer'
-                : 'bg-[#5c3516] text-amber-100 border border-[#804f26]'
+                : `${theme.troughWhiteClass}`
             }`}
           >
             <span>⚪ თეთრი:</span>
@@ -719,11 +749,11 @@ export const BoardView: React.FC<BoardViewProps> = ({
           <div
             className={`w-full h-full rounded-full border-2 flex items-center justify-center ${
               dragState.owner === 'WHITE'
-                ? 'bg-gradient-to-br from-[#ffffff] via-[#f7f1e5] to-[#dccab0] border-[#b09b7e] ring-2 ring-amber-400'
-                : 'bg-gradient-to-br from-[#593e2e] via-[#382214] to-[#1a0d06] border-[#704d37] ring-2 ring-amber-400'
+                ? `${theme.checkers.white.gradientClass} ring-2 ring-amber-400`
+                : `${theme.checkers.black.gradientClass} ring-2 ring-amber-400`
             }`}
           >
-            <div className="w-2 h-2 rounded-full bg-amber-400/80" />
+            <div className={`w-2 h-2 rounded-full ${dragState.owner === 'WHITE' ? theme.checkers.white.dragDotBg : theme.checkers.black.dragDotBg}`} />
           </div>
         </div>
       )}

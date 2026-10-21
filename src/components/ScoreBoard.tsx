@@ -8,6 +8,7 @@ import {
   Player,
 } from '../engine/types';
 import { DAVI_LABELS } from '../engine/constants';
+import { BoardThemeId, BOARD_THEMES } from '../engine/themes';
 import {
   ShieldAlert,
   Trophy,
@@ -16,6 +17,7 @@ import {
   BarChart3,
   Settings,
   Download,
+  Palette,
 } from 'lucide-react';
 
 interface ScoreBoardProps {
@@ -26,6 +28,8 @@ interface ScoreBoardProps {
   phase: GamePhase;
   daviState: DaviState;
   soundEnabled: boolean;
+  currentTheme?: BoardThemeId;
+  onCycleTheme?: () => void;
   onToggleSound: () => void;
   onOpenCampaign: () => void;
   onOpenStats: () => void;
@@ -41,6 +45,8 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
   phase: _phase,
   daviState,
   soundEnabled,
+  currentTheme = 'CLASSIC_WALNUT',
+  onCycleTheme,
   onToggleSound,
   onOpenCampaign,
   onOpenStats,
@@ -150,6 +156,20 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
         >
           <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
         </button>
+
+        {/* Theme quick cycle button */}
+        {onCycleTheme && (
+          <button
+            onClick={onCycleTheme}
+            className="p-1 sm:p-1.5 rounded-lg bg-amber-950/50 hover:bg-amber-800/60 border border-amber-800/40 text-amber-200 transition flex items-center gap-1"
+            title={`დაფის თემა: ${BOARD_THEMES[currentTheme]?.name} (დააჭირე შესაცვლელად)`}
+          >
+            <Palette className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+            <span className="text-xs hidden min-[520px]:inline">
+              {BOARD_THEMES[currentTheme]?.badge}
+            </span>
+          </button>
+        )}
 
         {/* Settings */}
         <button

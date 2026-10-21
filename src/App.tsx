@@ -8,6 +8,7 @@ import { DaviModal } from './components/DaviModal';
 import { StatsAndSettingsModal } from './components/StatsAndSettingsModal';
 import { RoundOverModal } from './components/RoundOverModal';
 import { InstallModal } from './components/InstallModal';
+import { BOARD_THEMES, getNextTheme } from './engine/themes';
 import { MessageSquare, X } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -122,6 +123,11 @@ export const App: React.FC = () => {
           e.preventDefault();
           store.handleRequestHint();
         }
+      } else if (e.key.toLowerCase() === 'a' && isHumanTurn) {
+        if (!isInput) {
+          e.preventDefault();
+          store.toggleAutoPlay();
+        }
       }
     };
 
@@ -139,8 +145,11 @@ export const App: React.FC = () => {
     canRoll,
   ]);
 
+  const currentTheme = store.settings.boardTheme || 'CLASSIC_WALNUT';
+  const themeConfig = BOARD_THEMES[currentTheme] || BOARD_THEMES.CLASSIC_WALNUT;
+
   return (
-    <div className="fixed inset-0 w-full w-screen h-full h-[100dvh] bg-gradient-to-b from-[#140b06] via-[#1c100a] to-[#0d0704] text-[#f7f2ea] flex flex-col justify-between items-center safe-pt safe-pb safe-pl safe-pr p-1 sm:p-2 select-none overflow-hidden touch-none font-['Noto_Sans_Georgian',system-ui,sans-serif]">
+    <div className={`fixed inset-0 w-full w-screen h-full h-[100dvh] ${themeConfig.appBgClass} text-[#f7f2ea] flex flex-col justify-between items-center safe-pt safe-pb safe-pl safe-pr p-1 sm:p-2 select-none overflow-hidden touch-none font-['Noto_Sans_Georgian',system-ui,sans-serif]`}>
       {/* Top Header & Match HUD (Locked Height) */}
       <div className="w-full max-w-5xl shrink-0">
         <ScoreBoard
@@ -151,6 +160,11 @@ export const App: React.FC = () => {
           phase={store.phase}
           daviState={store.daviState}
           soundEnabled={store.settings.soundEnabled}
+          currentTheme={currentTheme}
+          onCycleTheme={() => {
+            const next = getNextTheme(currentTheme);
+            store.updateSettings({ boardTheme: next });
+          }}
           onToggleSound={() =>
             store.updateSettings({ soundEnabled: !store.settings.soundEnabled })
           }
@@ -178,6 +192,10 @@ export const App: React.FC = () => {
           isRolling={store.isRolling}
           rollKey={store.rollKey}
           canRoll={canRoll}
+          themeId={currentTheme}
+          isAutoPlay={store.isAutoPlay}
+          canBearOffPhase={store.isBearingOff}
+          onToggleAutoPlay={store.toggleAutoPlay}
           onRoll={store.rollDice}
           onPointClick={store.handleSelectPoint}
           onPointDoubleClick={store.handleDoubleClickPoint}
@@ -217,8 +235,8 @@ export const App: React.FC = () => {
           canRoll={canRoll}
           onRoll={store.rollDice}
           turnCompletedWaitingConfirm={store.turnCompletedWaitingConfirm && isHumanTurn}
-          canUndo={store.undoStack.length > 0 && isHumanTurn}
-          canHint={isHumanTurn && store.phase === 'MOVING' && !store.turnCompletedWaitingConfirm}
+          canUndo={store.undoStack.length > 0 && isHumanTurn && !store.isAutoPlay}
+          canHint={isHumanTurn && store.phase === 'MOVING' && !store.turnCompletedWaitingConfirm && !store.isAutoPlay}
           canOfferDavi={canOfferDavi}
           nextDaviWord={nextDaviWord}
           onConfirmTurn={store.handleConfirmTurn}
@@ -228,6 +246,9 @@ export const App: React.FC = () => {
           historyCount={store.historyLog.length}
           isHistoryOpen={showFullHistory}
           onToggleHistory={() => setShowFullHistory(!showFullHistory)}
+          isAutoPlay={store.isAutoPlay}
+          canBearOff={store.isBearingOff}
+          onToggleAutoPlay={store.toggleAutoPlay}
         />
 
         {/* Floating Overlay History Drawer (Zero Layout Impact on Board) */}
