@@ -160,6 +160,8 @@ export function useGameStore() {
 
   // Auto Play
   const [isAutoPlay, setIsAutoPlay] = useState<boolean>(false);
+  const hasAutoActivatedBearOffRef = useRef<boolean>(false);
+  const autoPlayRunningRef = useRef<boolean>(false);
 
   // Result
   const [lastRoundResult, setLastRoundResult] = useState<RoundResult | null>(null);
@@ -262,6 +264,8 @@ export function useGameStore() {
     setTurnCompletedWaitingConfirm(false);
     setLastRoundResult(null);
     setIsAutoPlay(false);
+    hasAutoActivatedBearOffRef.current = false;
+    autoPlayRunningRef.current = false;
 
     setDaviState({
       level: 0,
@@ -1078,64 +1082,94 @@ export function useGameStore() {
   useEffect(() => {
     if (
       settings.autoBearOff &&
-      !isAutoPlay &&
+      !hasAutoActivatedBearOffRef.current &&
       (gameMode !== 'PASS_AND_PLAY' ? turn === 'WHITE' : true) &&
       canBearOff(board, turn) &&
       phase !== 'ROUND_OVER' &&
       phase !== 'MATCH_OVER'
     ) {
+      hasAutoActivatedBearOffRef.current = true;
       setIsAutoPlay(true);
       addLog('⚡ ყველა ქვა სახლშია — ავტო-გამოსვლა გააქტიურდა!');
     }
-  }, [settings.autoBearOff, isAutoPlay, board, turn, phase, gameMode, addLog]);
+  }, [settings.autoBearOff, board, turn, phase, gameMode, addLog]);
 
   /**
    * Human Auto-Play Engine
-   * Runs when isAutoPlay is true and it's human's turn (WHITE in vs AI, or current turn in Pass & Play).
+   * Runs continuously while isAutoPlay is true and it's human's turn.
+   * Fully executes entire turn sequences (including multi-dice & doubles)
+   * without re-render interruption, then hands turn to opponent and resumes.
    */
   useEffect(() => {
-    if (!isAutoPlay) return;
-    if (phase === 'ROUND_OVER' || phase === 'MATCH_OVER' || phase === 'DAVI_OFFERED') return;
-    if (gameMode !== 'PASS_AND_PLAY' && turn !== 'WHITE') return;
-
-    let isCancelled = false;
+    if (!isAutoPlay) {
+      autoPlayRunningRef.current = false;
+      return;
+    }
+    if (phase === 'ROUND_OVER' || phase === 'MATCH_OVER' || phase === 'DAVI_OFFERED') {
+      autoPlayRunningRef.current = false;
+      return;
+    }
+    const isHumanTurn = gameMode === 'PASS_AND_PLAY' || turn === 'WHITE';
+    if (!isHumanTurn) {
+      autoPlayRunningRef.current = false;
+      return;
+    }
 
     // 1. If waiting to roll: auto roll with natural delay
-    if (phase === 'WAITING_FOR_ROLL_OR_DAVI' && !isRolling) {
+    if (phase === 'WAITING_FOR_ROLL_OR_DAVI') {
+      if (isRolling) return;
+      let cancelled = false;
       const timer = setTimeout(() => {
-        if (!isCancelled && isAutoPlay) {
+        if (!cancelled && stateRef.current.isAutoPlay && stateRef.current.phase === 'WAITING_FOR_ROLL_OR_DAVI') {
           rollDice();
         }
-      }, 420);
+      }, 450);
       return () => {
-        isCancelled = true;
+        cancelled = true;
         clearTimeout(timer);
       };
     }
 
-    // 2. If turn is completed waiting for manual confirmation: auto confirm
+    // 2. If turn was completed waiting for manual confirm: auto confirm
     if (turnCompletedWaitingConfirm) {
+      if (autoPlayRunningRef.current) return;
+      let cancelled = false;
       const timer = setTimeout(() => {
-        if (!isCancelled && isAutoPlay) {
+        if (!cancelled && stateRef.current.isAutoPlay) {
           handleConfirmTurn();
         }
-      }, 300);
+      }, 250);
       return () => {
-        isCancelled = true;
+        cancelled = true;
         clearTimeout(timer);
       };
     }
 
-    // 3. If in MOVING phase: play best sequence
-    if (phase === 'MOVING' && !isRolling && diceRemaining.length > 0) {
+    // 3. If in MOVING phase: play complete sequence of legal moves
+    if (phase === 'MOVING') {
+      if (isRolling) return;
+      if (autoPlayRunningRef.current) return; // Prevent duplicate re-entry
+
+      autoPlayRunningRef.current = true;
+      let cancelled = false;
+
       const runAutoMoves = async () => {
-        await new Promise((r) => setTimeout(r, 360));
-        if (isCancelled) return;
+        await new Promise((r) => setTimeout(r, 380));
+        if (cancelled || !stateRef.current.isAutoPlay) {
+          autoPlayRunningRef.current = false;
+          return;
+        }
 
         const currentBInitial = stateRef.current.board;
-        const currentDiceInitial = stateRef.current.diceRemaining;
+        const currentDiceInitial = [...stateRef.current.diceRemaining];
         const currentTurn = stateRef.current.turn;
         const forbidLock = !stateRef.current.settings.allowHitAndCoverInHome;
+
+        if (currentDiceInitial.length === 0) {
+          autoPlayRunningRef.current = false;
+          endTurn(currentBInitial, currentTurn);
+          return;
+        }
 
         const sequences = generateLegalTurnSequences(
           currentBInitial,
@@ -1145,8 +1179,10 @@ export function useGameStore() {
         );
 
         if (sequences.length === 0) {
-          await new Promise((r) => setTimeout(r, 400));
-          if (isCancelled) return;
+          addLog('⚠️ სვლა აღარ არის — სვლა გადადის.');
+          await new Promise((r) => setTimeout(r, 550));
+          autoPlayRunningRef.current = false;
+          if (cancelled || !stateRef.current.isAutoPlay) return;
           endTurn(currentBInitial, currentTurn);
           return;
         }
@@ -1159,6 +1195,7 @@ export function useGameStore() {
         );
 
         if (!bestSeq || bestSeq.moves.length === 0) {
+          autoPlayRunningRef.current = false;
           endTurn(currentBInitial, currentTurn);
           return;
         }
@@ -1167,8 +1204,11 @@ export function useGameStore() {
         const currentDiceRem = [...currentDiceInitial];
 
         for (let i = 0; i < bestSeq.moves.length; i++) {
-          await new Promise((r) => setTimeout(r, 420));
-          if (isCancelled) return;
+          await new Promise((r) => setTimeout(r, 450));
+          if (cancelled || !stateRef.current.isAutoPlay) {
+            autoPlayRunningRef.current = false;
+            return;
+          }
 
           const m = bestSeq.moves[i];
           currentB = applySingleMove(currentB, currentTurn, m, forbidLock);
@@ -1183,20 +1223,24 @@ export function useGameStore() {
           playMoveSoundAndLog(m);
 
           if (isRoundWon(currentB, currentTurn)) {
+            autoPlayRunningRef.current = false;
+            setIsAutoPlay(false);
             handleRoundVictory(currentB, currentTurn);
             return;
           }
         }
 
-        await new Promise((r) => setTimeout(r, 350));
-        if (isCancelled) return;
+        await new Promise((r) => setTimeout(r, 400));
+        autoPlayRunningRef.current = false;
+        if (cancelled || !stateRef.current.isAutoPlay) return;
         endTurn(currentB, currentTurn);
       };
 
       runAutoMoves();
 
       return () => {
-        isCancelled = true;
+        cancelled = true;
+        autoPlayRunningRef.current = false;
       };
     }
   }, [
@@ -1204,7 +1248,6 @@ export function useGameStore() {
     phase,
     turn,
     isRolling,
-    diceRemaining,
     turnCompletedWaitingConfirm,
     gameMode,
   ]);
