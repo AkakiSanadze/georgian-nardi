@@ -88,6 +88,13 @@ export function useGameStore() {
     }
   }, [stats]);
 
+  // Synchronize sound and haptic settings on mount & whenever updated
+  useEffect(() => {
+    sounds.setMuted(!settings.soundEnabled);
+    sounds.setVolume(settings.soundVolume);
+    haptics.setEnabled(settings.hapticFeedbackEnabled ?? true);
+  }, [settings.soundEnabled, settings.soundVolume, settings.hapticFeedbackEnabled]);
+
   // Save settings
   const updateSettings = (newSettings: Partial<GameSettings>) => {
     setSettings((prev) => {

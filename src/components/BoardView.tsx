@@ -182,10 +182,10 @@ export const BoardView: React.FC<BoardViewProps> = ({
       const isWhite = owner === 'WHITE';
       const isTopOfStack = index === Math.min(totalCount, 5) - 1;
 
-      // Stacking offset calculation: strictly absolute so point size never changes
+      // Stacking offset calculation: checkers touch edge-to-edge and overlap with ZERO gaps!
       const visibleCount = Math.min(totalCount, 5);
-      const overlapPercent = visibleCount > 3 ? 42 : 50;
-      const stackOffset = index * overlapPercent;
+      const stepMultiplier = visibleCount >= 5 ? 0.62 : visibleCount === 4 ? 0.67 : 0.72;
+      const isBar = pointIdx === 'BAR';
 
       return (
         <div
@@ -198,7 +198,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
           }}
           onPointerMove={handlePointerMoveChecker}
           onPointerUp={handlePointerUpChecker}
-          className={`w-7 h-7 min-[380px]:w-8 min-[380px]:h-8 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-full absolute left-1/2 -translate-x-1/2 flex items-center justify-center select-none ${
+          className={`w-[var(--checker-size,2rem)] h-[var(--checker-size,2rem)] rounded-full absolute left-1/2 -translate-x-1/2 flex items-center justify-center select-none ${
             isTopOfStack && isMovableTopChecker ? 'cursor-grab active:cursor-grabbing touch-none' : ''
           } ${
             isWhite
@@ -212,8 +212,8 @@ export const BoardView: React.FC<BoardViewProps> = ({
               : ''
           }`}
           style={{
-            top: isTop ? `${stackOffset}px` : undefined,
-            bottom: !isTop ? `${stackOffset}px` : undefined,
+            top: isBar ? '0px' : isTop ? `calc(2px + ${index * stepMultiplier} * var(--checker-size, 2rem))` : undefined,
+            bottom: isBar ? undefined : !isTop ? `calc(2px + ${index * stepMultiplier} * var(--checker-size, 2rem))` : undefined,
             zIndex: index + 5,
           }}
         >
@@ -571,7 +571,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
                   data-point-idx="BAR"
                   onClick={() => onPointClick('BAR')}
                   onDoubleClick={() => onPointDoubleClick('BAR')}
-                  className={`cursor-pointer relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 ${
+                  className={`cursor-pointer relative flex items-center justify-center w-[var(--checker-size,2rem)] h-[var(--checker-size,2rem)] ${
                     selectedPoint === 'BAR' ? 'ring-2 ring-amber-400 rounded-full scale-105' : ''
                   }`}
                   title="თეთრი ქვა ბარზე"
@@ -601,7 +601,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
                   data-point-idx="BAR"
                   onClick={() => onPointClick('BAR')}
                   onDoubleClick={() => onPointDoubleClick('BAR')}
-                  className={`cursor-pointer relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 ${
+                  className={`cursor-pointer relative flex items-center justify-center w-[var(--checker-size,2rem)] h-[var(--checker-size,2rem)] ${
                     selectedPoint === 'BAR' ? 'ring-2 ring-amber-400 rounded-full scale-105' : ''
                   }`}
                   title="შავი ქვა ბარზე"
@@ -710,7 +710,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
       {/* Floating Dragged Checker Indicator (under pointer/finger) */}
       {dragState && dragState.hasMoved && (
         <div
-          className="fixed pointer-events-none z-50 w-9 h-9 sm:w-11 sm:h-11 rounded-full shadow-[0_12px_24px_rgba(0,0,0,0.85)] -translate-x-1/2 -translate-y-1/2 flex items-center justify-center scale-110"
+          className="fixed pointer-events-none z-50 w-[var(--checker-size,2rem)] h-[var(--checker-size,2rem)] rounded-full shadow-[0_12px_24px_rgba(0,0,0,0.85)] -translate-x-1/2 -translate-y-1/2 flex items-center justify-center scale-110"
           style={{
             left: `${dragState.currentX}px`,
             top: `${dragState.currentY - 18}px`, // slightly elevated above finger tip

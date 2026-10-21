@@ -2,9 +2,51 @@ class SoundEngine {
   private ctx: AudioContext | null = null;
   private isMuted: boolean = false;
   private volume: number = 0.8;
+  private isUnlocked: boolean = false;
 
   constructor() {
-    // AudioContext will be initialized on first user interaction to comply with browser policies
+    // Proactively unlock AudioContext on the first user interaction for iOS Safari & WebKit
+    if (typeof window !== 'undefined') {
+      const events = ['touchstart', 'touchend', 'click', 'pointerdown'];
+      const autoUnlock = () => {
+        this.unlock();
+        if (this.isUnlocked) {
+          events.forEach((evt) => window.removeEventListener(evt, autoUnlock, true));
+        }
+      };
+      events.forEach((evt) => window.addEventListener(evt, autoUnlock, { capture: true, passive: true }));
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+      });
+    }
+  }
+
+  public unlock() {
+    if (typeof window === 'undefined') return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => {
+        this.isUnlocked = true;
+      }).catch(() => {});
+    } else if (ctx.state === 'running') {
+      this.isUnlocked = true;
+    }
+
+    // Play an inaudible 1-sample buffer to warm up the iOS audio session
+    try {
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    } catch {
+      // ignore
+    }
   }
 
   private getContext(): AudioContext | null {
@@ -16,7 +58,7 @@ class SoundEngine {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
     return this.ctx;
   }
@@ -34,11 +76,12 @@ class SoundEngine {
    * Synchronized to match the 750ms 3D bounce trajectory keyframes.
    */
   public playDiceRoll() {
-    if (this.isMuted) return;
+    if (this.isMuted || this.volume <= 0.001) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
+    const safeVol = Math.max(0.001, this.volume);
 
     // Helper: Play a realistic crisp wooden impact click/resonance
     const playWoodImpact = (time: number, volumeScale: number, pitch = 850) => {
@@ -49,7 +92,7 @@ class SoundEngine {
       osc.frequency.exponentialRampToValueAtTime(140, time + 0.045);
 
       const oscGain = ctx.createGain();
-      oscGain.gain.setValueAtTime(0.5 * volumeScale * this.volume, time);
+      oscGain.gain.setValueAtTime(Math.max(0.001, 0.5 * volumeScale * safeVol), time);
       oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
 
       osc.connect(oscGain);
@@ -74,7 +117,7 @@ class SoundEngine {
       filter.Q.setValueAtTime(4, time);
 
       const noiseGain = ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.6 * volumeScale * this.volume, time);
+      noiseGain.gain.setValueAtTime(Math.max(0.001, 0.6 * volumeScale * safeVol), time);
       noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.035);
 
       noise.connect(filter);
@@ -111,11 +154,12 @@ class SoundEngine {
    * Deep, satisfying resonant clack of a solid wooden checker hitting the board.
    */
   public playCheckerMove() {
-    if (this.isMuted) return;
+    if (this.isMuted || this.volume <= 0.001) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
     const t = ctx.currentTime;
+    const safeVol = Math.max(0.001, this.volume);
 
     // 1. Low wood resonance (Oscillator)
     const osc = ctx.createOscillator();
@@ -124,7 +168,7 @@ class SoundEngine {
     osc.frequency.exponentialRampToValueAtTime(65, t + 0.06);
 
     const oscGain = ctx.createGain();
-    oscGain.gain.setValueAtTime(0.6 * this.volume, t);
+    oscGain.gain.setValueAtTime(Math.max(0.001, 0.6 * safeVol), t);
     oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
 
     osc.connect(oscGain);
@@ -146,7 +190,7 @@ class SoundEngine {
     clickFilter.frequency.setValueAtTime(1400, t);
 
     const clickGain = ctx.createGain();
-    clickGain.gain.setValueAtTime(0.4 * this.volume, t);
+    clickGain.gain.setValueAtTime(Math.max(0.001, 0.4 * safeVol), t);
     clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
 
     clickSource.connect(clickFilter);
@@ -160,11 +204,12 @@ class SoundEngine {
    * Sharp, energetic double-click of hitting an opponent's checker.
    */
   public playCheckerHit() {
-    if (this.isMuted) return;
+    if (this.isMuted || this.volume <= 0.001) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
     const t = ctx.currentTime;
+    const safeVol = Math.max(0.001, this.volume);
 
     // First sharp hit
     this.playCheckerMove();
@@ -180,33 +225,34 @@ class SoundEngine {
     filter.frequency.setValueAtTime(800, t + 0.04);
 
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.5 * this.volume, t + 0.04);
+    gain.gain.setValueAtTime(Math.max(0.001, 0.5 * safeVol), t + 0.04);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
 
     osc.connect(filter);
     filter.connect(gain);
     gain.connect(ctx.destination);
-
     osc.start(t + 0.04);
     osc.stop(t + 0.13);
   }
 
   /**
-   * Smooth sliding clink when a checker is borne off the board.
+   * Smooth wooden sliding clack when bearing off a checker.
    */
   public playBearOff() {
-    if (this.isMuted) return;
+    if (this.isMuted || this.volume <= 0.001) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
     const t = ctx.currentTime;
+    const safeVol = Math.max(0.001, this.volume);
+
     const osc = ctx.createOscillator();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(320, t);
     osc.frequency.exponentialRampToValueAtTime(540, t + 0.12);
 
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.4 * this.volume, t);
+    gain.gain.setValueAtTime(Math.max(0.001, 0.4 * safeVol), t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
 
     osc.connect(gain);
@@ -219,11 +265,12 @@ class SoundEngine {
    * Dramatic, bold chime when Davi / Se / Chari is declared.
    */
   public playDaviCall() {
-    if (this.isMuted) return;
+    if (this.isMuted || this.volume <= 0.001) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
     const t = ctx.currentTime;
+    const safeVol = Math.max(0.001, this.volume);
     // Dramatic gong / triad chord
     const freqs = [220, 277.18, 329.63, 440]; // A major chord
 
@@ -233,7 +280,7 @@ class SoundEngine {
       osc.frequency.setValueAtTime(freq, t);
 
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime((0.35 / (idx + 1)) * this.volume, t);
+      gain.gain.setValueAtTime(Math.max(0.001, (0.35 / (idx + 1)) * safeVol), t);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
 
       osc.connect(gain);
@@ -247,11 +294,12 @@ class SoundEngine {
    * Georgian celebratory fanfare chords on victory!
    */
   public playWinFanfare() {
-    if (this.isMuted) return;
+    if (this.isMuted || this.volume <= 0.001) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
     const t = ctx.currentTime;
+    const safeVol = Math.max(0.001, this.volume);
     // Ascending celebratory notes
     const notes = [
       { f: 261.63, delay: 0.0 },   // C4
@@ -266,7 +314,7 @@ class SoundEngine {
       osc.frequency.setValueAtTime(n.f, t + n.delay);
 
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.4 * this.volume, t + n.delay);
+      gain.gain.setValueAtTime(Math.max(0.001, 0.4 * safeVol), t + n.delay);
       gain.gain.exponentialRampToValueAtTime(0.001, t + n.delay + 0.5);
 
       osc.connect(gain);
@@ -280,18 +328,19 @@ class SoundEngine {
    * Subtle UI click.
    */
   public playClick() {
-    if (this.isMuted) return;
+    if (this.isMuted || this.volume <= 0.001) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
     const t = ctx.currentTime;
+    const safeVol = Math.max(0.001, this.volume);
     const osc = ctx.createOscillator();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(600, t);
     osc.frequency.exponentialRampToValueAtTime(200, t + 0.03);
 
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.2 * this.volume, t);
+    gain.gain.setValueAtTime(Math.max(0.001, 0.2 * safeVol), t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
 
     osc.connect(gain);
