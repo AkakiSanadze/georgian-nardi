@@ -77,6 +77,29 @@ export const App: React.FC = () => {
     return () => document.removeEventListener('touchmove', handleTouchMove);
   }, []);
 
+  // Prevent accidental tab closure / refresh while a match is actively in progress
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (store.isMatchInProgress) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [store.isMatchInProgress]);
+
+  // Auto-dismiss restored notification after 6 seconds
+  useEffect(() => {
+    if (store.isGameRestored) {
+      const timer = setTimeout(() => {
+        store.dismissRestoredNotice();
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [store.isGameRestored, store.dismissRestoredNotice]);
+
   // Keyboard shortcuts for fast desktop gameplay (kept safe without affecting mobile)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -151,7 +174,7 @@ export const App: React.FC = () => {
   return (
     <div className={`fixed inset-0 w-full w-screen h-full h-[100dvh] ${themeConfig.appBgClass} text-[#f7f2ea] flex flex-col justify-between items-center safe-pt safe-pb safe-pl safe-pr p-1 sm:p-2 select-none overflow-hidden touch-none font-['Noto_Sans_Georgian',system-ui,sans-serif]`}>
       {/* Top Header & Match HUD (Locked Height) */}
-      <div className="w-full max-w-5xl shrink-0">
+      <div className="w-full max-w-5xl shrink-0 relative">
         <ScoreBoard
           gameMode={store.gameMode}
           campaignRound={store.currentCampaignRound}
@@ -173,6 +196,29 @@ export const App: React.FC = () => {
           onOpenSettings={() => setStatsModalTab('SETTINGS')}
           onOpenInstall={() => setIsInstallOpen(true)}
         />
+
+        {/* Restored Game Notice Toast (Floating, Dismissible, Non-Blocking) */}
+        {store.isGameRestored && (
+          <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-2xl bg-[#1e0f08]/95 backdrop-blur-xl border border-amber-500/80 shadow-2xl flex items-center gap-2.5 text-xs text-amber-100 animate-sheet-up whitespace-nowrap">
+            <span className="flex h-2 w-2 relative shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <div className="flex items-center gap-1.5 leading-tight">
+              <span className="font-extrabold text-amber-300">💾 თამაში აღდგენილია</span>
+              <span className="text-amber-200/70 text-[11px] hidden min-[480px]:inline">
+                ({store.matchScore.WHITE} : {store.matchScore.BLACK})
+              </span>
+            </div>
+            <button
+              onClick={store.dismissRestoredNotice}
+              className="ml-1 p-0.5 rounded-md hover:bg-amber-900/60 text-amber-300"
+              title="დახურვა"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Authentic Georgian Nardi Board (Flex-1, Zero Layout Shift) */}
@@ -282,8 +328,19 @@ export const App: React.FC = () => {
         currentRoundId={store.currentCampaignRound.id}
         onClose={() => setIsCampaignOpen(false)}
         onSelectRound={(round) => {
+          if (round.id === store.currentCampaignRound.id) {
+            setIsCampaignOpen(false);
+            return;
+          }
+          if (store.isMatchInProgress) {
+            const confirmed = window.confirm(
+              `მიმდინარე მატჩი არ დასრულებულა (ანგარიში ${store.matchScore.WHITE}:${store.matchScore.BLACK}).\n\nნამდვილად გსურს ახალ რაუნდზე (${round.city}) გადასვლა? მიმდინარე თამაში შეწყდება.`
+            );
+            if (!confirmed) return;
+          }
           store.setCurrentCampaignRound(round);
           store.startNewMatch('CAMPAIGN', round.id - 1);
+          setIsCampaignOpen(false);
         }}
       />
 
@@ -304,11 +361,13 @@ export const App: React.FC = () => {
         gameMode={store.gameMode}
         quickDifficulty={store.quickDifficulty}
         quickTargetScore={store.quickTargetScore}
+        isMatchInProgress={store.isMatchInProgress}
         onClose={() => setStatsModalTab(null)}
         onUpdateSettings={store.updateSettings}
         onStartNewMatch={(mode, diff, pts) => {
           store.startNewMatch(mode, 0, diff, pts);
         }}
+        onResetCurrentMatch={store.resetCurrentMatch}
         onOpenInstall={() => setIsInstallOpen(true)}
       />
 

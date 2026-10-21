@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AIDifficulty, GameMode, GameSettings, GameStats } from '../engine/types';
 import { BOARD_THEMES, THEME_ORDER } from '../engine/themes';
 import { haptics } from '../audio/haptics';
-import { BarChart3, Settings, Volume2, VolumeX, X, PlayCircle, Dices, Award, Smartphone, Palette, Check, Zap } from 'lucide-react';
+import { BarChart3, Settings, Volume2, VolumeX, X, PlayCircle, Dices, Award, Smartphone, Palette, Check, Zap, RotateCcw } from 'lucide-react';
 
 interface StatsAndSettingsModalProps {
   isOpen: boolean;
@@ -12,9 +12,11 @@ interface StatsAndSettingsModalProps {
   gameMode: GameMode;
   quickDifficulty: AIDifficulty;
   quickTargetScore: number;
+  isMatchInProgress?: boolean;
   onClose: () => void;
   onUpdateSettings: (settings: Partial<GameSettings>) => void;
   onStartNewMatch: (mode: GameMode, difficulty: AIDifficulty, targetScore: number) => void;
+  onResetCurrentMatch?: () => void;
   onOpenInstall?: () => void;
 }
 
@@ -26,9 +28,11 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
   gameMode,
   quickDifficulty,
   quickTargetScore,
+  isMatchInProgress = false,
   onClose,
   onUpdateSettings,
   onStartNewMatch,
+  onResetCurrentMatch,
   onOpenInstall,
 }) => {
   const [tab, setTab] = useState<'STATS' | 'SETTINGS'>(initialTab);
@@ -451,6 +455,12 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
 
                 <button
                   onClick={() => {
+                    if (isMatchInProgress) {
+                      const confirmed = window.confirm(
+                        'მიმდინარე მატჩი არ დასრულებულა. ნამდვილად გსურს ახალი მატჩის დაწყება? არსებული პროგრესი განულდება.'
+                      );
+                      if (!confirmed) return;
+                    }
                     onStartNewMatch(selectedMode, selectedDiff, selectedTarget);
                     onClose();
                   }}
@@ -458,6 +468,24 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
                 >
                   <PlayCircle className="w-5 h-5" /> ახალი მატჩის დაწყება
                 </button>
+
+                {onResetCurrentMatch && isMatchInProgress && (
+                  <button
+                    onClick={() => {
+                      const confirmed = window.confirm(
+                        'ნამდვილად გსურს მიმდინარე მატჩის თავიდან დაწყება (0:0)?'
+                      );
+                      if (confirmed) {
+                        onResetCurrentMatch();
+                        onClose();
+                      }
+                    }}
+                    className="w-full py-2.5 rounded-2xl bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/50 text-amber-200 font-bold text-xs flex items-center justify-center gap-2 transition"
+                  >
+                    <RotateCcw className="w-4 h-4 text-amber-400" />
+                    მიმდინარე მატჩის თავიდან დაწყება
+                  </button>
+                )}
 
                 {onOpenInstall && (
                   <button

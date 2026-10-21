@@ -42,6 +42,80 @@ import { haptics } from '../audio/haptics';
 const STORAGE_KEY_CAMPAIGN = 'georgian_nardi_campaign_unlocked';
 const STORAGE_KEY_SETTINGS = 'georgian_nardi_settings';
 const STORAGE_KEY_STATS = 'georgian_nardi_stats';
+const STORAGE_KEY_SAVED_GAME = 'georgian_nardi_active_game_v1';
+
+export interface SavedGameState {
+  version: number;
+  gameMode: GameMode;
+  currentCampaignRound: CampaignRound;
+  quickDifficulty: AIDifficulty;
+  quickTargetScore: number;
+  board: BoardState;
+  turn: Player;
+  phase: GamePhase;
+  dice: [number, number] | null;
+  diceRemaining: number[];
+  diceName: string;
+  daviState: DaviState;
+  matchScore: MatchScore;
+  historyLog: string[];
+  undoStack: UndoStep[];
+  turnCompletedWaitingConfirm: boolean;
+  lastRoundResult: RoundResult | null;
+  savedAt: number;
+}
+
+function loadSavedGame(): SavedGameState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SAVED_GAME);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SavedGameState;
+    if (
+      parsed &&
+      parsed.board &&
+      Array.isArray(parsed.board.points) &&
+      parsed.board.points.length === 24 &&
+      parsed.board.bar &&
+      parsed.board.borneOff &&
+      typeof parsed.board.bar.WHITE === 'number' &&
+      typeof parsed.board.bar.BLACK === 'number' &&
+      typeof parsed.board.borneOff.WHITE === 'number' &&
+      typeof parsed.board.borneOff.BLACK === 'number' &&
+      parsed.matchScore &&
+      typeof parsed.matchScore.WHITE === 'number' &&
+      typeof parsed.matchScore.BLACK === 'number' &&
+      (parsed.turn === 'WHITE' || parsed.turn === 'BLACK')
+    ) {
+      const validPhases: GamePhase[] = [
+        'WAITING_FOR_ROLL_OR_DAVI',
+        'MOVING',
+        'AI_THINKING',
+        'DAVI_OFFERED',
+        'ROUND_OVER',
+        'MATCH_OVER',
+      ];
+      if (!validPhases.includes(parsed.phase)) {
+        parsed.phase = 'WAITING_FOR_ROLL_OR_DAVI';
+      }
+
+      // If saved during AI turn in single-player, resume in AI_THINKING
+      if (parsed.turn === 'BLACK' && parsed.gameMode !== 'PASS_AND_PLAY') {
+        if (parsed.phase === 'MOVING' || parsed.phase === 'AI_THINKING') {
+          parsed.phase = 'AI_THINKING';
+        }
+      }
+
+      if (!Array.isArray(parsed.board.lockedHomeHitPoints)) {
+        parsed.board.lockedHomeHitPoints = [];
+      }
+
+      return parsed;
+    }
+  } catch (e) {
+    console.error('Error loading saved game:', e);
+  }
+  return null;
+}
 
 export interface UndoStep {
   board: BoardState;
@@ -112,51 +186,81 @@ export function useGameStore() {
     });
   };
 
+  // Saved game snapshot on mount
+  const initialSavedGame = useRef<SavedGameState | null>(loadSavedGame());
+  const saved = initialSavedGame.current;
+
   // Game setup
-  const [gameMode, setGameMode] = useState<GameMode>('CAMPAIGN');
-  const [currentCampaignRound, setCurrentCampaignRound] = useState<CampaignRound>(
-    CAMPAIGN_ROUNDS[0]
+  const [gameMode, setGameMode] = useState<GameMode>(
+    () => saved?.gameMode || 'CAMPAIGN'
   );
-  const [quickDifficulty, setQuickDifficulty] = useState<AIDifficulty>('SKILLED');
-  const [quickTargetScore, setQuickTargetScore] = useState<number>(5);
+  const [currentCampaignRound, setCurrentCampaignRound] = useState<CampaignRound>(
+    () => saved?.currentCampaignRound || CAMPAIGN_ROUNDS[0]
+  );
+  const [quickDifficulty, setQuickDifficulty] = useState<AIDifficulty>(
+    () => saved?.quickDifficulty || 'SKILLED'
+  );
+  const [quickTargetScore, setQuickTargetScore] = useState<number>(
+    () => saved?.quickTargetScore || 5
+  );
 
   // Live game state
-  const [board, setBoard] = useState<BoardState>(createInitialBoard());
-  const [turn, setTurn] = useState<Player>('WHITE');
-  const [phase, setPhase] = useState<GamePhase>('WAITING_FOR_ROLL_OR_DAVI');
+  const [board, setBoard] = useState<BoardState>(
+    () => saved?.board || createInitialBoard()
+  );
+  const [turn, setTurn] = useState<Player>(
+    () => saved?.turn || 'WHITE'
+  );
+  const [phase, setPhase] = useState<GamePhase>(
+    () => saved?.phase || 'WAITING_FOR_ROLL_OR_DAVI'
+  );
 
   // Dice
-  const [dice, setDice] = useState<[number, number] | null>(null);
-  const [diceRemaining, setDiceRemaining] = useState<number[]>([]);
-  const [diceName, setDiceName] = useState<string>('');
+  const [dice, setDice] = useState<[number, number] | null>(
+    () => saved?.dice ?? null
+  );
+  const [diceRemaining, setDiceRemaining] = useState<number[]>(
+    () => saved?.diceRemaining ?? []
+  );
+  const [diceName, setDiceName] = useState<string>(
+    () => saved?.diceName || ''
+  );
   const [isRolling, setIsRolling] = useState<boolean>(false);
   const [rollKey, setRollKey] = useState<number>(0);
 
   // Davi
-  const [daviState, setDaviState] = useState<DaviState>({
-    level: 0,
-    value: 1,
-    owner: null,
-    offeredBy: null,
-    offeredValue: 1,
-  });
+  const [daviState, setDaviState] = useState<DaviState>(
+    () => saved?.daviState || {
+      level: 0,
+      value: 1,
+      owner: null,
+      offeredBy: null,
+      offeredValue: 1,
+    }
+  );
 
   // Match score
-  const [matchScore, setMatchScore] = useState<MatchScore>({
-    WHITE: 0,
-    BLACK: 0,
-    targetScore: 3,
-    roundNumber: 1,
-    isCrawford: false,
-    crawfordPassed: false,
-  });
+  const [matchScore, setMatchScore] = useState<MatchScore>(
+    () => saved?.matchScore || {
+      WHITE: 0,
+      BLACK: 0,
+      targetScore: 3,
+      roundNumber: 1,
+      isCrawford: false,
+      crawfordPassed: false,
+    }
+  );
 
   // Selection & Moves
   const [selectedPoint, setSelectedPoint] = useState<number | 'BAR' | null>(null);
   const [legalTargets, setLegalTargets] = useState<number[]>([]);
-  const [undoStack, setUndoStack] = useState<UndoStep[]>([]);
+  const [undoStack, setUndoStack] = useState<UndoStep[]>(
+    () => saved?.undoStack || []
+  );
   const [hintSequence, setHintSequence] = useState<MoveSequence | null>(null);
-  const [turnCompletedWaitingConfirm, setTurnCompletedWaitingConfirm] = useState<boolean>(false);
+  const [turnCompletedWaitingConfirm, setTurnCompletedWaitingConfirm] = useState<boolean>(
+    () => saved?.turnCompletedWaitingConfirm || false
+  );
 
   // Auto Play
   const [isAutoPlay, setIsAutoPlay] = useState<boolean>(false);
@@ -164,8 +268,17 @@ export function useGameStore() {
   const autoPlayRunningRef = useRef<boolean>(false);
 
   // Result
-  const [lastRoundResult, setLastRoundResult] = useState<RoundResult | null>(null);
-  const [historyLog, setHistoryLog] = useState<string[]>([]);
+  const [lastRoundResult, setLastRoundResult] = useState<RoundResult | null>(
+    () => saved?.lastRoundResult || null
+  );
+  const [historyLog, setHistoryLog] = useState<string[]>(() => {
+    if (saved?.historyLog && saved.historyLog.length > 0) {
+      return ['💾 წინა თამაში აღდგა.', ...saved.historyLog.slice(0, 44)];
+    }
+    return [];
+  });
+
+  const [isGameRestored, setIsGameRestored] = useState<boolean>(() => !!saved);
 
   // Ref to track latest state inside async AI timeouts
   const stateRef = useRef({
@@ -200,6 +313,77 @@ export function useGameStore() {
     };
   });
 
+  // Auto-save active game state to localStorage on every state transition
+  useEffect(() => {
+    try {
+      const stateToSave: SavedGameState = {
+        version: 1,
+        gameMode,
+        currentCampaignRound,
+        quickDifficulty,
+        quickTargetScore,
+        board,
+        turn,
+        phase,
+        dice,
+        diceRemaining,
+        diceName,
+        daviState,
+        matchScore,
+        historyLog: historyLog.slice(0, 30),
+        undoStack,
+        turnCompletedWaitingConfirm,
+        lastRoundResult,
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(STORAGE_KEY_SAVED_GAME, JSON.stringify(stateToSave));
+    } catch (e) {
+      console.error('Failed to auto-save game state:', e);
+    }
+  }, [
+    gameMode,
+    currentCampaignRound,
+    quickDifficulty,
+    quickTargetScore,
+    board,
+    turn,
+    phase,
+    dice,
+    diceRemaining,
+    diceName,
+    daviState,
+    matchScore,
+    historyLog,
+    undoStack,
+    turnCompletedWaitingConfirm,
+    lastRoundResult,
+  ]);
+
+  const dismissRestoredNotice = useCallback(() => {
+    setIsGameRestored(false);
+  }, []);
+
+  const clearSavedGame = useCallback(() => {
+    try {
+      localStorage.removeItem(STORAGE_KEY_SAVED_GAME);
+      setIsGameRestored(false);
+    } catch (e) {
+      console.error('Failed to clear saved game:', e);
+    }
+  }, []);
+
+  const isMatchInProgress =
+    phase !== 'MATCH_OVER' &&
+    (matchScore.WHITE > 0 ||
+      matchScore.BLACK > 0 ||
+      matchScore.roundNumber > 1 ||
+      phase === 'MOVING' ||
+      dice !== null ||
+      board.borneOff.WHITE > 0 ||
+      board.borneOff.BLACK > 0 ||
+      board.bar.WHITE > 0 ||
+      board.bar.BLACK > 0);
+
   const addLog = useCallback((msg: string) => {
     setHistoryLog((prev) => [msg, ...prev.slice(0, 45)]);
   }, []);
@@ -222,6 +406,7 @@ export function useGameStore() {
     difficulty: AIDifficulty = 'SKILLED',
     targetScore = 5
   ) => {
+    setIsGameRestored(false);
     setGameMode(mode);
     const roundConfig = CAMPAIGN_ROUNDS[campaignRoundIndex] || CAMPAIGN_ROUNDS[0];
     setCurrentCampaignRound(roundConfig);
@@ -243,6 +428,19 @@ export function useGameStore() {
 
     addLog(`ახალი მატჩი დაიწყო! მიზანი: ${actualTarget} ქულა.`);
   };
+
+  /**
+   * Resets the current match cleanly from round 1 with the same settings.
+   */
+  const resetCurrentMatch = useCallback(() => {
+    startNewMatch(
+      stateRef.current.gameMode,
+      stateRef.current.currentCampaignRound.id - 1,
+      stateRef.current.quickDifficulty,
+      stateRef.current.quickTargetScore
+    );
+    addLog('🔄 მატჩი თავიდან დაიწყო.');
+  }, [addLog]);
 
   /**
    * Starts a new round within the current match.
@@ -958,42 +1156,52 @@ export function useGameStore() {
       await new Promise((r) => setTimeout(r, 550));
       if (isCancelled) return;
 
-      // Step 1: Check if AI offers Davi before rolling
-      if (shouldAIOfferDavi(currentBInitial, 'BLACK', currentDavi, currentMatchScore, diff)) {
-        handleOfferDavi('BLACK');
-        return; // Wait for player response in DAVI_OFFERED phase
+      let diceArr: number[];
+
+      // Check if resuming an AI turn where dice were already rolled
+      const existingRem = stateRef.current.diceRemaining;
+      const existingDice = stateRef.current.dice;
+
+      if (existingRem && existingRem.length > 0 && existingDice) {
+        diceArr = [...existingRem];
+      } else {
+        // Step 1: Check if AI offers Davi before rolling
+        if (shouldAIOfferDavi(currentBInitial, 'BLACK', currentDavi, currentMatchScore, diff)) {
+          handleOfferDavi('BLACK');
+          return; // Wait for player response in DAVI_OFFERED phase
+        }
+
+        // Step 2: Roll dice with 3D animation
+        const d1 = rollFairDie();
+        const d2 = rollFairDie();
+        diceArr = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
+        const georgianName = getGeorgianDiceName(d1, d2);
+
+        setDice([d1, d2]);
+        setRollKey((prev) => prev + 1);
+        setIsRolling(true);
+        sounds.playDiceRoll();
+
+        await new Promise((r) => setTimeout(r, 750));
+        if (isCancelled) return;
+
+        setDiceRemaining(diceArr);
+        setDiceName(georgianName);
+        setIsRolling(false);
+        addLog(`შავმა გააგორა: ${d1}-${d2} (${georgianName})`);
+
+        // Record stat
+        const high = Math.max(d1, d2);
+        const low = Math.min(d1, d2);
+        const key = `${high}-${low}`;
+        setStats((prev) => ({
+          ...prev,
+          diceRollsCount: {
+            ...prev.diceRollsCount,
+            [key]: (prev.diceRollsCount[key] || 0) + 1,
+          },
+        }));
       }
-
-      // Step 2: Roll dice with 3D animation
-      const d1 = rollFairDie();
-      const d2 = rollFairDie();
-      const diceArr = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
-      const georgianName = getGeorgianDiceName(d1, d2);
-
-      setDice([d1, d2]);
-      setRollKey((prev) => prev + 1);
-      setIsRolling(true);
-      sounds.playDiceRoll();
-
-      await new Promise((r) => setTimeout(r, 750));
-      if (isCancelled) return;
-
-      setDiceRemaining(diceArr);
-      setDiceName(georgianName);
-      setIsRolling(false);
-      addLog(`შავმა გააგორა: ${d1}-${d2} (${georgianName})`);
-
-      // Record stat
-      const high = Math.max(d1, d2);
-      const low = Math.min(d1, d2);
-      const key = `${high}-${low}`;
-      setStats((prev) => ({
-        ...prev,
-        diceRollsCount: {
-          ...prev.diceRollsCount,
-          [key]: (prev.diceRollsCount[key] || 0) + 1,
-        },
-      }));
 
       const sequences = generateLegalTurnSequences(
         currentBInitial,
@@ -1328,6 +1536,8 @@ export function useGameStore() {
     stats,
     isAutoPlay,
     isBearingOff,
+    isGameRestored,
+    isMatchInProgress,
 
     // Actions
     rollDice,
@@ -1342,6 +1552,9 @@ export function useGameStore() {
     handleDropDavi,
     startNewMatch,
     startNewRound,
+    resetCurrentMatch,
+    clearSavedGame,
+    dismissRestoredNotice,
     updateSettings,
     setGameMode,
     setCurrentCampaignRound,
