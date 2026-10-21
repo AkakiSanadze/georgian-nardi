@@ -227,6 +227,8 @@ export const CAMPAIGN_ROUNDS: CampaignRound[] = [
 export const DEFAULT_SETTINGS: GameSettings = {
   soundEnabled: true,
   soundVolume: 0.8,
+  hapticFeedbackEnabled: true,
+  singleTapMoveEnabled: false,
   animationSpeed: 'NORMAL',
   countMarsOnDavi: true,
   allowHitAndCoverInHome: true,

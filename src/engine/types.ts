@@ -90,6 +90,8 @@ export interface RoundResult {
 export interface GameSettings {
   soundEnabled: boolean;
   soundVolume: number;
+  hapticFeedbackEnabled?: boolean;
+  singleTapMoveEnabled?: boolean;
   animationSpeed: 'FAST' | 'NORMAL' | 'SLOW';
   countMarsOnDavi: boolean; // Sports rule: true, Courtyard rule: false
   allowHitAndCoverInHome: boolean; // true: hitting and covering/hiding is allowed (default)

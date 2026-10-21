@@ -30,7 +30,8 @@ class SoundEngine {
   }
 
   /**
-   * Generates realistic wooden dice rattle sound.
+   * Generates realistic wooden dice rattle and multi-bounce acoustic sound.
+   * Synchronized to match the 750ms 3D bounce trajectory keyframes.
    */
   public playDiceRoll() {
     if (this.isMuted) return;
@@ -38,18 +39,30 @@ class SoundEngine {
     if (!ctx) return;
 
     const now = ctx.currentTime;
-    const bounces = 5;
 
-    for (let i = 0; i < bounces; i++) {
-      const delay = i * 0.06 + Math.random() * 0.02;
-      const t = now + delay;
+    // Helper: Play a realistic crisp wooden impact click/resonance
+    const playWoodImpact = (time: number, volumeScale: number, pitch = 850) => {
+      // 1. Resonant wood impulse
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(pitch, time);
+      osc.frequency.exponentialRampToValueAtTime(140, time + 0.045);
 
-      // Noise impulse for impact
-      const bufferSize = ctx.sampleRate * 0.03;
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(0.5 * volumeScale * this.volume, time);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+
+      osc.connect(oscGain);
+      oscGain.connect(ctx.destination);
+      osc.start(time);
+      osc.stop(time + 0.055);
+
+      // 2. High-frequency wood tap click noise
+      const bufferSize = Math.floor(ctx.sampleRate * 0.02);
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let j = 0; j < bufferSize; j++) {
-        data[j] = (Math.random() * 2 - 1) * Math.exp(-j / (bufferSize * 0.2));
+        data[j] = (Math.random() * 2 - 1) * Math.exp(-j / (bufferSize * 0.25));
       }
 
       const noise = ctx.createBufferSource();
@@ -57,21 +70,41 @@ class SoundEngine {
 
       const filter = ctx.createBiquadFilter();
       filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(800 + Math.random() * 600, t);
-      filter.Q.setValueAtTime(3, t);
+      filter.frequency.setValueAtTime(1200 + Math.random() * 400, time);
+      filter.Q.setValueAtTime(4, time);
 
-      const gain = ctx.createGain();
-      const intensity = (1 - i / bounces) * 0.7 * this.volume;
-      gain.gain.setValueAtTime(intensity, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.6 * volumeScale * this.volume, time);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.035);
 
       noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(ctx.destination);
+      filter.connect(noiseGain);
+      noiseGain.connect(ctx.destination);
 
-      noise.start(t);
-      noise.stop(t + 0.05);
-    }
+      noise.start(time);
+      noise.stop(time + 0.04);
+    };
+
+    // Realistic throw & bounce schedule:
+    // Shake / throw flick:
+    playWoodImpact(now + 0.02, 0.4, 950);
+    playWoodImpact(now + 0.07, 0.35, 1100);
+
+    // Primary board impact 1 (~230ms):
+    playWoodImpact(now + 0.23, 1.0, 780);
+    playWoodImpact(now + 0.25, 0.85, 840); // 2nd die offset
+
+    // Bounce impact 2 (~430ms):
+    playWoodImpact(now + 0.43, 0.75, 820);
+    playWoodImpact(now + 0.45, 0.65, 890);
+
+    // Bounce impact 3 (~590ms):
+    playWoodImpact(now + 0.59, 0.5, 860);
+    playWoodImpact(now + 0.61, 0.45, 920);
+
+    // Final settling tap (~690ms):
+    playWoodImpact(now + 0.69, 0.35, 960);
+    playWoodImpact(now + 0.72, 0.3, 1020);
   }
 
   /**

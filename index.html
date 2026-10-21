@@ -2,14 +2,33 @@
 <html lang="ka">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%234a2c1d' stroke='%23d4af37' stroke-width='6'/><circle cx='50' cy='50' r='32' fill='%23f7f2ea' stroke='%23383333' stroke-width='4'/><circle cx='40' cy='42' r='4' fill='%231a1818'/><circle cx='60' cy='58' r='4' fill='%231a1818'/><circle cx='50' cy='50' r='4' fill='%231a1818'/></svg>" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>ქართული ნარდი — Georgian Backgammon</title>
+    <meta name="description" content="ქართული ნარდი (Georgian Backgammon) — ითამაშე ბოტის წინააღმდეგ ან მეგობართან ერთად" />
+
+    <!-- PWA & Web App Manifest -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#140b06" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="ქართული ნარდი" />
+
+    <!-- iOS Safari "Add to Home Screen" & Standalone Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ქართული ნარდი" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+
+    <!-- Google Fonts: Noto Sans Georgian -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-[#120b07] text-[#f7f2ea] antialiased select-none overflow-x-hidden font-['Noto_Sans_Georgian',system-ui,sans-serif]">
+  <body class="bg-[#120b07] text-[#f7f2ea] antialiased select-none overflow-hidden overscroll-none fixed inset-0 w-full h-full font-['Noto_Sans_Georgian',system-ui,sans-serif]">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

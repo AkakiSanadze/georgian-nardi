@@ -36,6 +36,7 @@ import {
   shouldAIOfferDavi,
 } from '../engine/ai';
 import { sounds } from '../audio/soundEngine';
+import { haptics } from '../audio/haptics';
 
 const STORAGE_KEY_CAMPAIGN = 'georgian_nardi_campaign_unlocked';
 const STORAGE_KEY_SETTINGS = 'georgian_nardi_settings';
@@ -98,6 +99,7 @@ export function useGameStore() {
       }
       sounds.setMuted(!updated.soundEnabled);
       sounds.setVolume(updated.soundVolume);
+      haptics.setEnabled(updated.hapticFeedbackEnabled ?? true);
       return updated;
     });
   };
@@ -120,6 +122,7 @@ export function useGameStore() {
   const [diceRemaining, setDiceRemaining] = useState<number[]>([]);
   const [diceName, setDiceName] = useState<string>('');
   const [isRolling, setIsRolling] = useState<boolean>(false);
+  const [rollKey, setRollKey] = useState<number>(0);
 
   // Davi
   const [daviState, setDaviState] = useState<DaviState>({
@@ -338,20 +341,23 @@ export function useGameStore() {
   const rollDice = () => {
     if (phase !== 'WAITING_FOR_ROLL_OR_DAVI' || isRolling) return;
 
+    // Immediately generate cryptographically fair dice so 3D animation knows where to land!
+    const d1 = rollFairDie();
+    const d2 = rollFairDie();
+    const diceArr = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
+    const georgianName = getGeorgianDiceName(d1, d2);
+
+    setDice([d1, d2]);
+    setRollKey((prev) => prev + 1);
     setIsRolling(true);
     setTurnCompletedWaitingConfirm(false);
     sounds.playDiceRoll();
+    haptics.trigger('medium');
 
     const rollingBoard = board;
     const rollingPlayer = turn;
 
     setTimeout(() => {
-      const d1 = rollFairDie();
-      const d2 = rollFairDie();
-      const diceArr = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
-      const georgianName = getGeorgianDiceName(d1, d2);
-
-      setDice([d1, d2]);
       setDiceRemaining(diceArr);
       setDiceName(georgianName);
       setIsRolling(false);
@@ -395,7 +401,7 @@ export function useGameStore() {
           }
         }
       }
-    }, 420);
+    }, 750);
   };
 
   /**
@@ -447,9 +453,17 @@ export function useGameStore() {
       return;
     }
 
+    // Single-tap smart move: if only 1 target is available, execute immediately!
+    if (settings.singleTapMoveEnabled && chains.size === 1) {
+      const onlyTargetKey = Array.from(chains.keys())[0];
+      executePlayerMove(point, onlyTargetKey === -99 ? 'OFF' : onlyTargetKey);
+      return;
+    }
+
     setSelectedPoint(point);
     setLegalTargets(Array.from(chains.keys()));
     sounds.playClick();
+    haptics.trigger('selection');
   };
 
   /**
@@ -530,10 +544,13 @@ export function useGameStore() {
   const playMoveSoundAndLog = (m: SingleMove) => {
     if (m.to === 'OFF') {
       sounds.playBearOff();
+      haptics.trigger('light');
     } else if (m.isHit) {
       sounds.playCheckerHit();
+      haptics.trigger('heavy');
     } else {
       sounds.playCheckerMove();
+      haptics.trigger('light');
     }
 
     if (m.isHomeBoardHit && !settings.allowHitAndCoverInHome) {
@@ -929,19 +946,20 @@ export function useGameStore() {
         return; // Wait for player response in DAVI_OFFERED phase
       }
 
-      // Step 2: Roll dice
-      sounds.playDiceRoll();
-      setIsRolling(true);
-
-      await new Promise((r) => setTimeout(r, 420));
-      if (isCancelled) return;
-
+      // Step 2: Roll dice with 3D animation
       const d1 = rollFairDie();
       const d2 = rollFairDie();
       const diceArr = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
       const georgianName = getGeorgianDiceName(d1, d2);
 
       setDice([d1, d2]);
+      setRollKey((prev) => prev + 1);
+      setIsRolling(true);
+      sounds.playDiceRoll();
+
+      await new Promise((r) => setTimeout(r, 750));
+      if (isCancelled) return;
+
       setDiceRemaining(diceArr);
       setDiceName(georgianName);
       setIsRolling(false);
@@ -1080,6 +1098,7 @@ export function useGameStore() {
     diceRemaining,
     diceName,
     isRolling,
+    rollKey,
     daviState,
     matchScore,
     selectedPoint,

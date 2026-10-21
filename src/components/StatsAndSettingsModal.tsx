@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AIDifficulty, GameMode, GameSettings, GameStats } from '../engine/types';
-import { BarChart3, Settings, Volume2, VolumeX, X, PlayCircle, Dices, Award } from 'lucide-react';
+import { BarChart3, Settings, Volume2, VolumeX, X, PlayCircle, Dices, Award, Smartphone } from 'lucide-react';
 
 interface StatsAndSettingsModalProps {
   isOpen: boolean;
@@ -13,6 +13,7 @@ interface StatsAndSettingsModalProps {
   onClose: () => void;
   onUpdateSettings: (settings: Partial<GameSettings>) => void;
   onStartNewMatch: (mode: GameMode, difficulty: AIDifficulty, targetScore: number) => void;
+  onOpenInstall?: () => void;
 }
 
 export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
@@ -26,6 +27,7 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
   onClose,
   onUpdateSettings,
   onStartNewMatch,
+  onOpenInstall,
 }) => {
   const [tab, setTab] = useState<'STATS' | 'SETTINGS'>(initialTab);
 
@@ -44,14 +46,17 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
   const totalRolls = Object.values(stats.diceRollsCount).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-2xl bg-gradient-to-b from-[#2d180d] to-[#150a04] border-2 sm:border-4 border-amber-600/60 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-amber-100 max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-2xl bg-gradient-to-b from-[#2d180d] to-[#150a04] border-t-2 sm:border-2 sm:border-4 border-amber-600/60 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-amber-100 max-h-[88vh] sm:max-h-[90vh] safe-pb animate-sheet-up sm:animate-fade-in">
+        {/* iOS Grab Handle for Mobile */}
+        <div className="w-10 h-1 rounded-full bg-amber-700/60 mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+
         {/* Header Tabs */}
-        <div className="flex items-center justify-between p-4 border-b border-amber-900/40 bg-black/40">
+        <div className="flex items-center justify-between px-4 py-3 sm:p-4 border-b border-amber-900/40 bg-black/40 shrink-0">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setTab('SETTINGS')}
-              className={`px-4 py-2 rounded-xl text-sm font-black flex items-center gap-2 transition ${
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 sm:gap-2 transition ${
                 tab === 'SETTINGS'
                   ? 'bg-amber-600 text-white shadow-md'
                   : 'bg-black/30 text-amber-300/70 hover:bg-black/50'
@@ -63,7 +68,7 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
 
             <button
               onClick={() => setTab('STATS')}
-              className={`px-4 py-2 rounded-xl text-sm font-black flex items-center gap-2 transition ${
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 sm:gap-2 transition ${
                 tab === 'STATS'
                   ? 'bg-amber-600 text-white shadow-md'
                   : 'bg-black/30 text-amber-300/70 hover:bg-black/50'
@@ -76,23 +81,23 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-black/40 hover:bg-black/60 border border-amber-800/40 text-amber-200 transition"
+            className="p-1.5 sm:p-2 rounded-xl bg-black/40 hover:bg-black/60 border border-amber-800/40 text-amber-200 transition"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
+        <div className="p-4 sm:p-6 overflow-y-auto allow-scroll flex-1 space-y-5 sm:space-y-6">
           {tab === 'SETTINGS' ? (
             <>
-              {/* Audio Settings */}
-              <div className="bg-black/30 p-4 rounded-2xl border border-amber-900/40 space-y-3">
-                <h3 className="text-sm font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-2">
-                  <Volume2 className="w-4 h-4" /> ხმა და აუდიო ეფექტები
+              {/* Audio & Haptics Settings */}
+              <div className="bg-black/30 p-3.5 sm:p-4 rounded-2xl border border-amber-900/40 space-y-3">
+                <h3 className="text-xs sm:text-sm font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                  <Volume2 className="w-4 h-4" /> ხმა და ჰაპტიკა (შეხების ვიბრაცია)
                 </h3>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">ხმოვანი ეფექტები (Web Audio API)</span>
+                  <span className="text-xs sm:text-sm">ხმოვანი ეფექტები (Web Audio API)</span>
                   <button
                     onClick={() => onUpdateSettings({ soundEnabled: !settings.soundEnabled })}
                     className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
@@ -106,8 +111,31 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
                   </button>
                 </div>
 
+                <div className="flex items-center justify-between pt-2 border-t border-amber-900/30">
+                  <div>
+                    <div className="text-xs sm:text-sm font-bold">ჰაპტიკური უკუკავშირი (ვიბრაცია)</div>
+                    <div className="text-[11px] text-amber-300/60">
+                      ტაქტილური შეხება ქვების აღებისას, სვლისა და კამათლის გაგორებისას
+                    </div>
+                  </div>
+                  <button
+                    onClick={() =>
+                      onUpdateSettings({
+                        hapticFeedbackEnabled: !(settings.hapticFeedbackEnabled ?? true),
+                      })
+                    }
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
+                      (settings.hapticFeedbackEnabled ?? true)
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-black/50 text-amber-300/70 border border-amber-800/40'
+                    }`}
+                  >
+                    {(settings.hapticFeedbackEnabled ?? true) ? 'ჩართულია' : 'გამორთულია'}
+                  </button>
+                </div>
+
                 {settings.soundEnabled && (
-                  <div className="flex items-center justify-between gap-4 pt-2">
+                  <div className="flex items-center justify-between gap-4 pt-2 border-t border-amber-900/30">
                     <span className="text-xs text-amber-300/70">ხმის სიმძლავრე</span>
                     <input
                       type="range"
@@ -118,22 +146,45 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
                       onChange={(e) =>
                         onUpdateSettings({ soundVolume: parseFloat(e.target.value) })
                       }
-                      className="w-40 accent-amber-500 cursor-pointer"
+                      className="w-36 sm:w-40 accent-amber-500 cursor-pointer"
                     />
                   </div>
                 )}
               </div>
 
               {/* Georgian Backgammon Rules Options */}
-              <div className="bg-black/30 p-4 rounded-2xl border border-amber-900/40 space-y-3">
-                <h3 className="text-sm font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-2">
+              <div className="bg-black/30 p-3.5 sm:p-4 rounded-2xl border border-amber-900/40 space-y-3">
+                <h3 className="text-xs sm:text-sm font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-2">
                   <Award className="w-4 h-4" /> ქართული წესების პარამეტრები
                 </h3>
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-bold">დავზე მარსი ითვლება (ორმაგდება)</div>
-                    <div className="text-xs text-amber-300/60">
+                    <div className="text-xs sm:text-sm font-bold">სწრაფი სვლა ერთი შეხებით (1-Tap Move)</div>
+                    <div className="text-[11px] text-amber-300/60">
+                      თუ ქვისთვის მხოლოდ 1 სამიზნეა, სვლა სრულდება 1 დაჭერით
+                    </div>
+                  </div>
+                  <button
+                    onClick={() =>
+                      onUpdateSettings({
+                        singleTapMoveEnabled: !settings.singleTapMoveEnabled,
+                      })
+                    }
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
+                      settings.singleTapMoveEnabled
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-black/50 text-amber-300/70 border border-amber-800/40'
+                    }`}
+                  >
+                    {settings.singleTapMoveEnabled ? 'ჩართულია' : 'გამორთულია'}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-amber-900/30">
+                  <div>
+                    <div className="text-xs sm:text-sm font-bold">დავზე მარსი ითვლება (ორმაგდება)</div>
+                    <div className="text-[11px] text-amber-300/60">
                       სპორტული წესი: მოგებული ქულა = ფსონი × 2
                     </div>
                   </div>
@@ -153,8 +204,8 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
 
                 <div className="flex items-center justify-between pt-2 border-t border-amber-900/30">
                   <div>
-                    <div className="text-sm font-bold">კარში მოკვლა და დაფარვა (დამალვა)</div>
-                    <div className="text-xs text-amber-300/60">
+                    <div className="text-xs sm:text-sm font-bold">კარში მოკვლა და დაფარვა (დამალვა)</div>
+                    <div className="text-[11px] text-amber-300/60">
                       მოკვლის შემდეგ ქვის დაფარვა ან წინ წაყვანა
                     </div>
                   </div>
@@ -176,8 +227,8 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
 
                 <div className="flex items-center justify-between pt-2 border-t border-amber-900/30">
                   <div>
-                    <div className="text-sm font-bold">ისრების ნუმერაციის სტილი</div>
-                    <div className="text-xs text-amber-300/60">
+                    <div className="text-xs sm:text-sm font-bold">ისრების ნუმერაციის სტილი</div>
+                    <div className="text-[11px] text-amber-300/60">
                       ტრადიციული ქართული (1–6) ან სრული (1–24)
                     </div>
                   </div>
@@ -197,8 +248,8 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
 
                 <div className="flex items-center justify-between pt-2 border-t border-amber-900/30">
                   <div>
-                    <div className="text-sm font-bold">სვლის ავტომატური დასრულება</div>
-                    <div className="text-xs text-amber-300/60">
+                    <div className="text-xs sm:text-sm font-bold">სვლის ავტომატური დასრულება</div>
+                    <div className="text-[11px] text-amber-300/60">
                       თუ გამორთულია, ბოლო კამათლის შემდეგ შეგიძლია Undo-ს დაჭერა
                     </div>
                   </div>
@@ -302,6 +353,19 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
                 >
                   <PlayCircle className="w-5 h-5" /> ახალი მატჩის დაწყება
                 </button>
+
+                {onOpenInstall && (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onOpenInstall();
+                    }}
+                    className="w-full py-2.5 rounded-2xl bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-600/50 text-emerald-200 font-bold text-xs flex items-center justify-center gap-2 transition"
+                  >
+                    <Smartphone className="w-4 h-4 text-emerald-400" />
+                    დაამატე აიფონის ეკრანზე (PWA / Add to Home Screen)
+                  </button>
+                )}
               </div>
             </>
           ) : (

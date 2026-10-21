@@ -50,8 +50,8 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
       : campaignRound.opponentName;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-md bg-gradient-to-b from-[#33170b] via-[#241006] to-[#120703] border-4 border-amber-500 rounded-3xl shadow-2xl p-6 text-center text-amber-100 flex flex-col items-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in safe-pb safe-pt">
+      <div className="relative w-full max-w-md bg-gradient-to-b from-[#33170b] via-[#241006] to-[#120703] border-2 sm:border-4 border-amber-500 rounded-3xl shadow-2xl p-4 sm:p-6 text-center text-amber-100 flex flex-col items-center">
         {/* Trophy / Laurel Icon */}
         <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center mb-3 shadow-lg">
           {isMatchOver ? (

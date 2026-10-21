@@ -7,13 +7,15 @@ import { CampaignModal } from './components/CampaignModal';
 import { DaviModal } from './components/DaviModal';
 import { StatsAndSettingsModal } from './components/StatsAndSettingsModal';
 import { RoundOverModal } from './components/RoundOverModal';
-import { MessageSquare, ChevronDown, ChevronUp, CheckCircle, RotateCcw } from 'lucide-react';
+import { InstallModal } from './components/InstallModal';
+import { MessageSquare, X } from 'lucide-react';
 
 export const App: React.FC = () => {
   const store = useGameStore();
 
   const [isCampaignOpen, setIsCampaignOpen] = useState(false);
   const [statsModalTab, setStatsModalTab] = useState<'STATS' | 'SETTINGS' | null>(null);
+  const [isInstallOpen, setIsInstallOpen] = useState(false);
   const [showFullHistory, setShowFullHistory] = useState(false);
 
   // Derive hint checker positions if active
@@ -30,6 +32,26 @@ export const App: React.FC = () => {
 
   const canRoll = store.phase === 'WAITING_FOR_ROLL_OR_DAVI' && isHumanTurn;
 
+  // Compute Davi offer eligibility
+  const canOfferDavi =
+    store.phase === 'WAITING_FOR_ROLL_OR_DAVI' &&
+    !store.matchScore.isCrawford &&
+    store.daviState.level < 5 &&
+    (store.daviState.owner === null || store.daviState.owner === store.turn) &&
+    (store.gameMode === 'PASS_AND_PLAY' || store.turn === 'WHITE');
+
+  const nextDaviLevel = store.daviState.level + 1;
+  const nextDaviWord =
+    nextDaviLevel === 1
+      ? 'დავი (2)'
+      : nextDaviLevel === 2
+      ? 'სე (3)'
+      : nextDaviLevel === 3
+      ? 'ჩარი (4)'
+      : nextDaviLevel === 4
+      ? 'ბეში (5)'
+      : 'შაში (6)';
+
   // Handle bear-off click
   const handleBearOffClick = () => {
     if (store.selectedPoint !== null && store.legalTargets.includes(-99)) {
@@ -37,17 +59,47 @@ export const App: React.FC = () => {
     }
   };
 
-  // Keyboard shortcuts for fast Mac desktop gameplay
+  // Prevent unwanted scrolling on iOS Safari while allowing touch controls
+  useEffect(() => {
+    const handleTouchMove = (e: TouchEvent) => {
+      // Only block touchmove on the game board and outer app shell (not inside modals or scrollable history)
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('.allow-scroll')) {
+        return;
+      }
+      if (e.touches.length === 1) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    return () => document.removeEventListener('touchmove', handleTouchMove);
+  }, []);
+
+  // Keyboard shortcuts for fast desktop gameplay (kept safe without affecting mobile)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isCampaignOpen || statsModalTab !== null) return;
+      const isInput =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable;
 
-      if (e.code === 'Space' || e.code === 'Enter') {
-        if (store.turnCompletedWaitingConfirm && isHumanTurn) {
+      if (e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar') {
+        if (!isInput) {
           e.preventDefault();
+        }
+      }
+
+      if (isCampaignOpen || statsModalTab !== null || isInstallOpen) return;
+
+      if (e.code === 'Space' || e.code === 'Enter' || e.key === ' ' || e.key === 'Enter') {
+        if (e.repeat) return;
+
+        if (store.turnCompletedWaitingConfirm && isHumanTurn) {
+          if (!isInput) e.preventDefault();
           store.handleConfirmTurn();
         } else if (canRoll && !store.isRolling) {
-          e.preventDefault();
+          if (!isInput) e.preventDefault();
           store.rollDice();
         }
       } else if (
@@ -56,24 +108,29 @@ export const App: React.FC = () => {
         isHumanTurn &&
         store.undoStack.length > 0
       ) {
-        e.preventDefault();
-        store.handleUndo();
+        if (!isInput) {
+          e.preventDefault();
+          store.handleUndo();
+        }
       } else if (
         e.key.toLowerCase() === 'h' &&
         store.phase === 'MOVING' &&
         isHumanTurn &&
         !store.turnCompletedWaitingConfirm
       ) {
-        e.preventDefault();
-        store.handleRequestHint();
+        if (!isInput) {
+          e.preventDefault();
+          store.handleRequestHint();
+        }
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, { passive: false });
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     isCampaignOpen,
     statsModalTab,
+    isInstallOpen,
     store.turnCompletedWaitingConfirm,
     store.phase,
     store.isRolling,
@@ -83,9 +140,9 @@ export const App: React.FC = () => {
   ]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#140b06] via-[#1c100a] to-[#0d0704] text-[#f7f2ea] flex flex-col justify-start items-center p-2 sm:p-4 select-none">
-      {/* Top Header & Match HUD */}
-      <div className="w-full max-w-4xl">
+    <div className="fixed inset-0 w-full w-screen h-full h-[100dvh] bg-gradient-to-b from-[#140b06] via-[#1c100a] to-[#0d0704] text-[#f7f2ea] flex flex-col justify-between items-center safe-pt safe-pb safe-pl safe-pr p-1 sm:p-2 select-none overflow-hidden touch-none font-['Noto_Sans_Georgian',system-ui,sans-serif]">
+      {/* Top Header & Match HUD (Locked Height) */}
+      <div className="w-full max-w-5xl shrink-0">
         <ScoreBoard
           gameMode={store.gameMode}
           campaignRound={store.currentCampaignRound}
@@ -93,23 +150,19 @@ export const App: React.FC = () => {
           turn={store.turn}
           phase={store.phase}
           daviState={store.daviState}
-          canUndo={store.undoStack.length > 0 && isHumanTurn}
-          canHint={isHumanTurn && store.phase === 'MOVING' && !store.turnCompletedWaitingConfirm}
           soundEnabled={store.settings.soundEnabled}
-          onUndo={store.handleUndo}
-          onHint={store.handleRequestHint}
-          onOfferDavi={() => store.handleOfferDavi(store.turn)}
           onToggleSound={() =>
             store.updateSettings({ soundEnabled: !store.settings.soundEnabled })
           }
           onOpenCampaign={() => setIsCampaignOpen(true)}
           onOpenStats={() => setStatsModalTab('STATS')}
           onOpenSettings={() => setStatsModalTab('SETTINGS')}
+          onOpenInstall={() => setIsInstallOpen(true)}
         />
       </div>
 
-      {/* Main Authentic Georgian Nardi Board */}
-      <main className="w-full max-w-4xl my-1.5 flex flex-col items-center">
+      {/* Main Authentic Georgian Nardi Board (Flex-1, Zero Layout Shift) */}
+      <main className="w-full max-w-5xl flex-1 min-h-0 flex flex-col items-center justify-center relative overflow-hidden py-0.5 sm:py-1">
         <BoardView
           board={store.board}
           turn={store.turn}
@@ -123,37 +176,39 @@ export const App: React.FC = () => {
           dice={store.dice}
           diceRemaining={store.diceRemaining}
           isRolling={store.isRolling}
+          rollKey={store.rollKey}
+          canRoll={canRoll}
+          onRoll={store.rollDice}
           onPointClick={store.handleSelectPoint}
           onPointDoubleClick={store.handleDoubleClickPoint}
           onBearOffClick={handleBearOffClick}
         />
       </main>
 
-      {/* Interactive Controls Bar: Dice, Confirm & Undo */}
-      <div className="w-full max-w-4xl flex flex-col items-center gap-2 my-1">
-        {/* If all moves played, show big Confirm Turn button with Undo option */}
-        {store.turnCompletedWaitingConfirm && isHumanTurn && (
-          <div className="flex items-center gap-3 animate-bounce my-1">
-            <button
-              onClick={store.handleConfirmTurn}
-              className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 text-white font-black text-sm sm:text-base shadow-xl flex items-center gap-2 border border-emerald-300"
-            >
-              <CheckCircle className="w-5 h-5" />
-              სვლის დასრულება (Space)
-            </button>
-
-            {store.undoStack.length > 0 && (
-              <button
-                onClick={store.handleUndo}
-                className="px-4 py-2.5 rounded-2xl bg-amber-900/80 hover:bg-amber-800 text-amber-200 font-bold text-sm shadow flex items-center gap-1.5 border border-amber-600"
-              >
-                <RotateCcw className="w-4 h-4" />
-                დაბრუნება (Undo)
-              </button>
-            )}
+      {/* Bottom Game Controls Dock & Status Ticker (Locked Height, Thumb-Zone Friendly) */}
+      <footer className="w-full max-w-5xl shrink-0 flex flex-col gap-1 relative z-30">
+        {/* Subtle 1-Line Status Ticker (Strict truncate, never causes wrapping) */}
+        <div className="w-full h-5 sm:h-6 flex items-center justify-between px-2 text-[10px] sm:text-xs text-amber-300 font-bold overflow-hidden">
+          <div className="flex items-center gap-1.5 truncate">
+            <MessageSquare className="w-3 h-3 text-amber-400 shrink-0" />
+            <span className="truncate">
+              {store.historyLog.length > 0
+                ? store.historyLog[0]
+                : 'თამაში მზადაა — გააგორე კამათელი!'}
+            </span>
           </div>
-        )}
 
+          {store.historyLog.length > 1 && (
+            <button
+              onClick={() => setShowFullHistory(!showFullHistory)}
+              className="text-[10px] sm:text-[11px] text-amber-400/80 hover:text-amber-300 ml-2 shrink-0 underline"
+            >
+              {showFullHistory ? 'დახურვა' : 'ისტორია'}
+            </button>
+          )}
+        </div>
+
+        {/* Thumb-Zone Bottom Dock */}
         <DiceDisplay
           dice={store.dice}
           diceRemaining={store.diceRemaining}
@@ -161,55 +216,45 @@ export const App: React.FC = () => {
           isRolling={store.isRolling}
           canRoll={canRoll}
           onRoll={store.rollDice}
+          turnCompletedWaitingConfirm={store.turnCompletedWaitingConfirm && isHumanTurn}
+          canUndo={store.undoStack.length > 0 && isHumanTurn}
+          canHint={isHumanTurn && store.phase === 'MOVING' && !store.turnCompletedWaitingConfirm}
+          canOfferDavi={canOfferDavi}
+          nextDaviWord={nextDaviWord}
+          onConfirmTurn={store.handleConfirmTurn}
+          onUndo={store.handleUndo}
+          onHint={store.handleRequestHint}
+          onOfferDavi={() => store.handleOfferDavi(store.turn)}
+          historyCount={store.historyLog.length}
+          isHistoryOpen={showFullHistory}
+          onToggleHistory={() => setShowFullHistory(!showFullHistory)}
         />
 
-        {/* Live Game Feed & History */}
-        <div className="w-full bg-[#1b0d07]/90 backdrop-blur-md border border-amber-900/40 rounded-2xl px-3 sm:px-4 py-1.5 flex flex-col transition-all">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs text-amber-300 font-bold">
-              <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
-              <span>
-                {store.historyLog.length > 0
-                  ? store.historyLog[0]
-                  : 'თამაში მზადაა — გააგორე კამათელი!'}
-              </span>
-            </div>
-
-            {store.historyLog.length > 1 && (
+        {/* Floating Overlay History Drawer (Zero Layout Impact on Board) */}
+        {showFullHistory && (
+          <div className="absolute bottom-full mb-1 inset-x-0 bg-[#1c0e07]/95 backdrop-blur-xl border border-amber-900/60 rounded-2xl p-3 shadow-2xl max-h-48 overflow-y-auto allow-scroll animate-fade-in z-50 text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-amber-900/40 text-amber-300 font-bold">
+              <span>სვლების სრული ისტორია</span>
               <button
-                onClick={() => setShowFullHistory(!showFullHistory)}
-                className="text-[11px] text-amber-400/80 hover:text-amber-300 flex items-center gap-0.5"
+                onClick={() => setShowFullHistory(false)}
+                className="p-1 rounded-full bg-amber-950 hover:bg-amber-900 text-amber-200"
               >
-                {showFullHistory ? (
-                  <>
-                    <span>დახურვა</span>
-                    <ChevronDown className="w-3 h-3" />
-                  </>
-                ) : (
-                  <>
-                    <span>ისტორია</span>
-                    <ChevronUp className="w-3 h-3" />
-                  </>
-                )}
+                <X className="w-3.5 h-3.5" />
               </button>
-            )}
-          </div>
-
-          {/* Expanded history drawer */}
-          {showFullHistory && (
-            <div className="mt-2 pt-2 border-t border-amber-900/40 max-h-32 overflow-y-auto space-y-1 text-xs text-amber-200/70">
+            </div>
+            <div className="mt-2 space-y-1 max-h-36 overflow-y-auto allow-scroll text-amber-200/80 font-mono text-[11px]">
               {store.historyLog.map((log, idx) => (
-                <div key={idx} className="flex items-center gap-2 font-mono text-[11px]">
-                  <span className="text-amber-500/50">•</span>
+                <div key={idx} className="flex items-center gap-1.5">
+                  <span className="text-amber-500">•</span>
                   <span>{log}</span>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
+      </footer>
 
-      {/* Modals */}
+      {/* Modals with Native iOS Sheet Polish */}
       <CampaignModal
         isOpen={isCampaignOpen}
         unlockedRound={store.unlockedCampaignRound}
@@ -243,6 +288,12 @@ export const App: React.FC = () => {
         onStartNewMatch={(mode, diff, pts) => {
           store.startNewMatch(mode, 0, diff, pts);
         }}
+        onOpenInstall={() => setIsInstallOpen(true)}
+      />
+
+      <InstallModal
+        isOpen={isInstallOpen}
+        onClose={() => setIsInstallOpen(false)}
       />
 
       <RoundOverModal
