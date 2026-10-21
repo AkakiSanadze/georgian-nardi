@@ -3,7 +3,6 @@ import { BoardState, Player } from './types';
 import {
   applySingleMove,
   canBearOff,
-  cloneBoard,
   generateLegalTurnSequences,
   isRoundWon,
 } from './rules';

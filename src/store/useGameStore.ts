@@ -285,6 +285,7 @@ export function useGameStore() {
     board,
     turn,
     phase,
+    dice,
     diceRemaining,
     daviState,
     matchScore,
@@ -292,6 +293,7 @@ export function useGameStore() {
     currentCampaignRound,
     unlockedCampaignRound,
     quickDifficulty,
+    quickTargetScore,
     settings,
     isAutoPlay,
   });
@@ -301,6 +303,7 @@ export function useGameStore() {
       board,
       turn,
       phase,
+      dice,
       diceRemaining,
       daviState,
       matchScore,
@@ -308,6 +311,7 @@ export function useGameStore() {
       currentCampaignRound,
       unlockedCampaignRound,
       quickDifficulty,
+      quickTargetScore,
       settings,
       isAutoPlay,
     };
@@ -1413,8 +1417,47 @@ export function useGameStore() {
 
         for (let i = 0; i < bestSeq.moves.length; i++) {
           await new Promise((r) => setTimeout(r, 450));
-          if (cancelled || !stateRef.current.isAutoPlay) {
+          if (cancelled) {
             autoPlayRunningRef.current = false;
+            return;
+          }
+
+          if (!stateRef.current.isAutoPlay) {
+            autoPlayRunningRef.current = false;
+            // Smoothly restore manual controls if the user paused auto-play mid-turn
+            if (currentDiceRem.length === 0) {
+              if (stateRef.current.settings.autoConfirmTurn) {
+                endTurn(currentB, currentTurn);
+              } else {
+                setTurnCompletedWaitingConfirm(true);
+                addLog('✅ სვლა დასრულებულია — დააჭირე „დადასტურებას“.');
+              }
+            } else {
+              const remSeq = generateLegalTurnSequences(
+                currentB,
+                currentTurn,
+                currentDiceRem,
+                forbidLock
+              );
+              if (remSeq.length === 0) {
+                if (stateRef.current.settings.autoConfirmTurn) {
+                  endTurn(currentB, currentTurn);
+                } else {
+                  setTurnCompletedWaitingConfirm(true);
+                }
+              } else if (currentB.bar[currentTurn] > 0) {
+                const barChains = getValidChainsFromPoint(
+                  currentB,
+                  currentTurn,
+                  currentDiceRem,
+                  'BAR'
+                );
+                if (barChains.size > 0) {
+                  setSelectedPoint('BAR');
+                  setLegalTargets(Array.from(barChains.keys()));
+                }
+              }
+            }
             return;
           }
 
@@ -1440,7 +1483,18 @@ export function useGameStore() {
 
         await new Promise((r) => setTimeout(r, 400));
         autoPlayRunningRef.current = false;
-        if (cancelled || !stateRef.current.isAutoPlay) return;
+        if (cancelled) return;
+
+        if (!stateRef.current.isAutoPlay) {
+          if (stateRef.current.settings.autoConfirmTurn) {
+            endTurn(currentB, currentTurn);
+          } else {
+            setTurnCompletedWaitingConfirm(true);
+            addLog('✅ სვლა დასრულებულია — დააჭირე „დადასტურებას“.');
+          }
+          return;
+        }
+
         endTurn(currentB, currentTurn);
       };
 
