@@ -6,7 +6,7 @@ import { BarChart3, Settings, Volume2, VolumeX, X, PlayCircle, Dices, Award, Sma
 
 interface StatsAndSettingsModalProps {
   isOpen: boolean;
-  activeTab: 'STATS' | 'SETTINGS';
+  activeTab: 'NEW_GAME' | 'STATS' | 'SETTINGS';
   stats: GameStats;
   settings: GameSettings;
   gameMode: GameMode;
@@ -35,7 +35,13 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
   onResetCurrentMatch,
   onOpenInstall,
 }) => {
-  const [tab, setTab] = useState<'STATS' | 'SETTINGS'>(initialTab);
+  const [tab, setTab] = useState<'NEW_GAME' | 'STATS' | 'SETTINGS'>(initialTab);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   const [selectedMode, setSelectedMode] = useState<GameMode>(gameMode);
   const [selectedDiff, setSelectedDiff] = useState<AIDifficulty>(quickDifficulty);
@@ -51,6 +57,131 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
   // Dice roll frequency computation
   const totalRolls = Object.values(stats.diceRollsCount).reduce((a, b) => a + b, 0);
 
+  const renderNewMatchSection = () => (
+    <div className="bg-black/30 p-4 sm:p-5 rounded-2xl border border-amber-900/40 space-y-4">
+      <h3 className="text-sm font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-2">
+        <PlayCircle className="w-4 h-4 text-amber-400" /> ახალი თამაშის წამოწყება
+      </h3>
+
+      <div className="space-y-2">
+        <label className="text-xs text-amber-300/80 font-bold">თამაშის რეჟიმი:</label>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { id: 'CAMPAIGN', label: 'კამპანია' },
+            { id: 'QUICK', label: 'AI-სთან' },
+            { id: 'PASS_AND_PLAY', label: '2 მოთამაშე' },
+          ].map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setSelectedMode(m.id as GameMode)}
+              className={`py-2 px-1 rounded-xl text-xs font-bold transition ${
+                selectedMode === m.id
+                  ? 'bg-amber-500 text-black font-black shadow'
+                  : 'bg-black/40 border border-amber-900/40 text-amber-200'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {selectedMode === 'QUICK' && (
+        <div className="space-y-2">
+          <label className="text-xs text-amber-300/80 font-bold">AI სირთულე:</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { id: 'BEGINNER', label: 'დამწყები' },
+              { id: 'AMATEUR', label: 'მოყვარული' },
+              { id: 'SKILLED', label: 'გამოცდილი' },
+              { id: 'GRANDMASTER', label: 'დიდოსტატი' },
+            ].map((d) => (
+              <button
+                key={d.id}
+                onClick={() => setSelectedDiff(d.id as AIDifficulty)}
+                className={`py-1.5 px-2 rounded-xl text-xs font-bold transition ${
+                  selectedDiff === d.id
+                    ? 'bg-amber-500 text-black font-black'
+                    : 'bg-black/40 border border-amber-900/40 text-amber-200'
+                }`}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {selectedMode !== 'CAMPAIGN' && (
+        <div className="space-y-2">
+          <label className="text-xs text-amber-300/80 font-bold">მატჩის ქულები:</label>
+          <div className="flex items-center gap-2">
+            {[1, 3, 5, 7, 11].map((pts) => (
+              <button
+                key={pts}
+                onClick={() => setSelectedTarget(pts)}
+                className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition ${
+                  selectedTarget === pts
+                    ? 'bg-amber-500 text-black font-black'
+                    : 'bg-black/40 border border-amber-900/40 text-amber-200'
+                }`}
+              >
+                {pts}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={() => {
+          if (isMatchInProgress) {
+            const confirmed = window.confirm(
+              'მიმდინარე მატჩი არ დასრულებულა. ნამდვილად გსურს ახალი მატჩის დაწყება? არსებული პროგრესი განულდება.'
+            );
+            if (!confirmed) return;
+          }
+          onStartNewMatch(selectedMode, selectedDiff, selectedTarget);
+          onClose();
+        }}
+        className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 text-white font-black text-sm shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition"
+      >
+        <PlayCircle className="w-5 h-5" /> ახალი მატჩის დაწყება
+      </button>
+
+      {onResetCurrentMatch && isMatchInProgress && (
+        <button
+          onClick={() => {
+            const confirmed = window.confirm(
+              'ნამდვილად გსურს მიმდინარე მატჩის თავიდან დაწყება (0:0)?'
+            );
+            if (confirmed) {
+              onResetCurrentMatch();
+              onClose();
+            }
+          }}
+          className="w-full py-2.5 rounded-2xl bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/50 text-amber-200 font-bold text-xs flex items-center justify-center gap-2 transition"
+        >
+          <RotateCcw className="w-4 h-4 text-amber-400" />
+          მიმდინარე მატჩის თავიდან დაწყება (0:0)
+        </button>
+      )}
+
+      {onOpenInstall && (
+        <button
+          onClick={() => {
+            onClose();
+            onOpenInstall();
+          }}
+          className="w-full py-2.5 rounded-2xl bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-600/50 text-emerald-200 font-bold text-xs flex items-center justify-center gap-2 transition"
+        >
+          <Smartphone className="w-4 h-4 text-emerald-400" />
+          დაამატე აიფონის ეკრანზე (PWA / Add to Home Screen)
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
       <div className="relative w-full max-w-2xl bg-gradient-to-b from-[#2d180d] to-[#150a04] border-t-2 sm:border-2 sm:border-4 border-amber-600/60 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-amber-100 max-h-[88vh] sm:max-h-[90vh] safe-pb animate-sheet-up sm:animate-fade-in">
@@ -58,36 +189,48 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
         <div className="w-10 h-1 rounded-full bg-amber-700/60 mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
 
         {/* Header Tabs */}
-        <div className="flex items-center justify-between px-4 py-3 sm:p-4 border-b border-amber-900/40 bg-black/40 shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-3 sm:p-4 border-b border-amber-900/40 bg-black/40 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              onClick={() => setTab('NEW_GAME')}
+              className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 transition whitespace-nowrap ${
+                tab === 'NEW_GAME'
+                  ? 'bg-amber-600 text-white shadow-md'
+                  : 'bg-black/30 text-amber-300/70 hover:bg-black/50'
+              }`}
+            >
+              <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
+              ახალი თამაში
+            </button>
+
             <button
               onClick={() => setTab('SETTINGS')}
-              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 sm:gap-2 transition ${
+              className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 transition whitespace-nowrap ${
                 tab === 'SETTINGS'
                   ? 'bg-amber-600 text-white shadow-md'
                   : 'bg-black/30 text-amber-300/70 hover:bg-black/50'
               }`}
             >
-              <Settings className="w-4 h-4" />
+              <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               პარამეტრები
             </button>
 
             <button
               onClick={() => setTab('STATS')}
-              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 sm:gap-2 transition ${
+              className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 transition whitespace-nowrap ${
                 tab === 'STATS'
                   ? 'bg-amber-600 text-white shadow-md'
                   : 'bg-black/30 text-amber-300/70 hover:bg-black/50'
               }`}
             >
-              <BarChart3 className="w-4 h-4" />
-              სტატისტიკა & კამათელი
+              <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              სტატისტიკა
             </button>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 sm:p-2 rounded-xl bg-black/40 hover:bg-black/60 border border-amber-800/40 text-amber-200 transition"
+            className="p-1.5 sm:p-2 rounded-xl bg-black/40 hover:bg-black/60 border border-amber-800/40 text-amber-200 transition shrink-0 ml-1"
           >
             <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
@@ -95,7 +238,9 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
 
         {/* Content Body */}
         <div className="p-4 sm:p-6 overflow-y-auto allow-scroll flex-1 space-y-5 sm:space-y-6">
-          {tab === 'SETTINGS' ? (
+          {tab === 'NEW_GAME' ? (
+            renderNewMatchSection()
+          ) : tab === 'SETTINGS' ? (
             <>
               {/* Theme Selector Section */}
               <div className="bg-black/30 p-3.5 sm:p-4 rounded-2xl border border-amber-900/40 space-y-3">
@@ -378,128 +523,7 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
               </div>
 
               {/* Start New Custom Match */}
-              <div className="bg-black/30 p-4 rounded-2xl border border-amber-900/40 space-y-4">
-                <h3 className="text-sm font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-2">
-                  <PlayCircle className="w-4 h-4" /> ახალი თამაშის წამოწყება
-                </h3>
-
-                <div className="space-y-2">
-                  <label className="text-xs text-amber-300/80 font-bold">თამაშის რეჟიმი:</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: 'CAMPAIGN', label: 'კამპანია' },
-                      { id: 'QUICK', label: 'AI-სთან' },
-                      { id: 'PASS_AND_PLAY', label: '2 მოთამაშე' },
-                    ].map((m) => (
-                      <button
-                        key={m.id}
-                        onClick={() => setSelectedMode(m.id as GameMode)}
-                        className={`py-2 px-1 rounded-xl text-xs font-bold transition ${
-                          selectedMode === m.id
-                            ? 'bg-amber-500 text-black font-black shadow'
-                            : 'bg-black/40 border border-amber-900/40 text-amber-200'
-                        }`}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {selectedMode === 'QUICK' && (
-                  <div className="space-y-2">
-                    <label className="text-xs text-amber-300/80 font-bold">AI სირთულე:</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
-                        { id: 'BEGINNER', label: 'დამწყები' },
-                        { id: 'AMATEUR', label: 'მოყვარული' },
-                        { id: 'SKILLED', label: 'გამოცდილი' },
-                        { id: 'GRANDMASTER', label: 'დიდოსტატი' },
-                      ].map((d) => (
-                        <button
-                          key={d.id}
-                          onClick={() => setSelectedDiff(d.id as AIDifficulty)}
-                          className={`py-1.5 px-2 rounded-xl text-xs font-bold transition ${
-                            selectedDiff === d.id
-                              ? 'bg-amber-500 text-black font-black'
-                              : 'bg-black/40 border border-amber-900/40 text-amber-200'
-                          }`}
-                        >
-                          {d.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {selectedMode !== 'CAMPAIGN' && (
-                  <div className="space-y-2">
-                    <label className="text-xs text-amber-300/80 font-bold">მატჩის ქულები:</label>
-                    <div className="flex items-center gap-2">
-                      {[1, 3, 5, 7, 11].map((pts) => (
-                        <button
-                          key={pts}
-                          onClick={() => setSelectedTarget(pts)}
-                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition ${
-                            selectedTarget === pts
-                              ? 'bg-amber-500 text-black font-black'
-                              : 'bg-black/40 border border-amber-900/40 text-amber-200'
-                          }`}
-                        >
-                          {pts}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => {
-                    if (isMatchInProgress) {
-                      const confirmed = window.confirm(
-                        'მიმდინარე მატჩი არ დასრულებულა. ნამდვილად გსურს ახალი მატჩის დაწყება? არსებული პროგრესი განულდება.'
-                      );
-                      if (!confirmed) return;
-                    }
-                    onStartNewMatch(selectedMode, selectedDiff, selectedTarget);
-                    onClose();
-                  }}
-                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 text-white font-black text-sm shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition"
-                >
-                  <PlayCircle className="w-5 h-5" /> ახალი მატჩის დაწყება
-                </button>
-
-                {onResetCurrentMatch && isMatchInProgress && (
-                  <button
-                    onClick={() => {
-                      const confirmed = window.confirm(
-                        'ნამდვილად გსურს მიმდინარე მატჩის თავიდან დაწყება (0:0)?'
-                      );
-                      if (confirmed) {
-                        onResetCurrentMatch();
-                        onClose();
-                      }
-                    }}
-                    className="w-full py-2.5 rounded-2xl bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/50 text-amber-200 font-bold text-xs flex items-center justify-center gap-2 transition"
-                  >
-                    <RotateCcw className="w-4 h-4 text-amber-400" />
-                    მიმდინარე მატჩის თავიდან დაწყება
-                  </button>
-                )}
-
-                {onOpenInstall && (
-                  <button
-                    onClick={() => {
-                      onClose();
-                      onOpenInstall();
-                    }}
-                    className="w-full py-2.5 rounded-2xl bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-600/50 text-emerald-200 font-bold text-xs flex items-center justify-center gap-2 transition"
-                  >
-                    <Smartphone className="w-4 h-4 text-emerald-400" />
-                    დაამატე აიფონის ეკრანზე (PWA / Add to Home Screen)
-                  </button>
-                )}
-              </div>
+              {renderNewMatchSection()}
             </>
           ) : (
             <>

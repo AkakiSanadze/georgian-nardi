@@ -18,6 +18,7 @@ import {
   Settings,
   Download,
   Palette,
+  RotateCcw,
 } from 'lucide-react';
 
 interface ScoreBoardProps {
@@ -31,6 +32,7 @@ interface ScoreBoardProps {
   currentTheme?: BoardThemeId;
   onCycleTheme?: () => void;
   onToggleSound: () => void;
+  onOpenNewGame?: () => void;
   onOpenCampaign: () => void;
   onOpenStats: () => void;
   onOpenSettings: () => void;
@@ -48,6 +50,7 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
   currentTheme = 'CLASSIC_WALNUT',
   onCycleTheme,
   onToggleSound,
+  onOpenNewGame,
   onOpenCampaign,
   onOpenStats,
   onOpenSettings,
@@ -168,6 +171,17 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
             <span className="text-xs hidden min-[520px]:inline">
               {BOARD_THEMES[currentTheme]?.badge}
             </span>
+          </button>
+        )}
+
+        {/* New Game */}
+        {onOpenNewGame && (
+          <button
+            onClick={onOpenNewGame}
+            className="p-1 sm:p-1.5 rounded-lg bg-amber-950/50 hover:bg-amber-800/60 border border-amber-800/40 text-amber-200 transition"
+            title="ახალი თამაში"
+          >
+            <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
           </button>
         )}
 

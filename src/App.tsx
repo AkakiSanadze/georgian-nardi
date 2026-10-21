@@ -15,7 +15,7 @@ export const App: React.FC = () => {
   const store = useGameStore();
 
   const [isCampaignOpen, setIsCampaignOpen] = useState(false);
-  const [statsModalTab, setStatsModalTab] = useState<'STATS' | 'SETTINGS' | null>(null);
+  const [statsModalTab, setStatsModalTab] = useState<'NEW_GAME' | 'STATS' | 'SETTINGS' | null>(null);
   const [isInstallOpen, setIsInstallOpen] = useState(false);
   const [showFullHistory, setShowFullHistory] = useState(false);
 
@@ -191,6 +191,7 @@ export const App: React.FC = () => {
           onToggleSound={() =>
             store.updateSettings({ soundEnabled: !store.settings.soundEnabled })
           }
+          onOpenNewGame={() => setStatsModalTab('NEW_GAME')}
           onOpenCampaign={() => setIsCampaignOpen(true)}
           onOpenStats={() => setStatsModalTab('STATS')}
           onOpenSettings={() => setStatsModalTab('SETTINGS')}
