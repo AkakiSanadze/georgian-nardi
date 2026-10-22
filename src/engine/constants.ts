@@ -243,6 +243,8 @@ export const DEFAULT_STATS: GameStats = {
   gamesWon: 0,
   marsWon: 0,
   marsLost: 0,
+  koksiWon: 0,
+  koksiLost: 0,
   daviWon: 0,
   daviAccepted: 0,
   diceRollsCount: {},

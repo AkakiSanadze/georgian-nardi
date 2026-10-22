@@ -1,43 +1,139 @@
+/**
+ * High-performance, mobile-resilient Web Audio Sound Engine.
+ *
+ * Specially engineered for iOS Safari / WebKit & Android Chrome to survive:
+ * - Mobile alarm rings (Clock app)
+ * - Incoming phone / FaceTime calls
+ * - Siri activations
+ * - App switching, locking/unlocking screen, and background tab transitions
+ *
+ * Implements:
+ * 1. Persistent (never-removed) user gesture listeners (touchstart, touchend, pointerdown, click, keydown).
+ * 2. Automatic recovery from WebKit 'interrupted' state.
+ * 3. Safe AudioContext recreation (respecting the WebKit 4-context limit by closing dead instances).
+ * 4. Inaudible buffer warm-up on every unlock/recovery to un-gate hardware channels.
+ * 5. Proactive suspension on hidden/pagehide and graceful auto-resume on visible/pageshow/focus.
+ * 6. Companion silent HTML5 audio session anchor.
+ */
+
 class SoundEngine {
   private ctx: AudioContext | null = null;
   private isMuted: boolean = false;
   private volume: number = 0.8;
   private isUnlocked: boolean = false;
+  private silentAudioEl: HTMLAudioElement | null = null;
+  private isRecreating: boolean = false;
 
   constructor() {
-    // Proactively unlock AudioContext on the first user interaction for iOS Safari & WebKit
     if (typeof window !== 'undefined') {
-      const events = ['touchstart', 'touchend', 'click', 'pointerdown'];
-      const autoUnlock = () => {
-        this.unlock();
-        if (this.isUnlocked) {
-          events.forEach((evt) => window.removeEventListener(evt, autoUnlock, true));
+      // 1. Persistent User Interaction Listeners:
+      // DO NOT remove these listeners! On mobile devices (iOS Safari / Android),
+      // OS interruptions (alarms, phone calls) force the AudioContext into 'interrupted' or 'suspended'.
+      // When the user returns to the game and touches the screen, these persistent listeners
+      // immediately revive the audio session within the trusted user gesture call stack.
+      const interactionEvents = ['touchstart', 'touchend', 'pointerdown', 'mousedown', 'click', 'keydown'];
+      const handleUserGesture = () => {
+        this.handleUserInteraction();
+      };
+
+      interactionEvents.forEach((evt) => {
+        window.addEventListener(evt, handleUserGesture, { capture: true, passive: true });
+      });
+
+      // 2. Page Lifecycle / Visibility Listeners:
+      const handleAppVisible = () => {
+        if (document.visibilityState === 'visible') {
+          this.recoverAudio();
+        } else if (document.visibilityState === 'hidden') {
+          // Proactive suspend: puts the audio hardware safely to sleep before
+          // WebKit/CoreAudio forcefully corrupts the AudioContext into a zombie state.
+          if (this.ctx && this.ctx.state === 'running') {
+            this.ctx.suspend().catch(() => {});
+          }
         }
       };
-      events.forEach((evt) => window.addEventListener(evt, autoUnlock, { capture: true, passive: true }));
 
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && this.ctx && this.ctx.state === 'suspended') {
-          this.ctx.resume().catch(() => {});
-        }
-      });
+      document.addEventListener('visibilitychange', handleAppVisible);
+      window.addEventListener('pageshow', () => this.recoverAudio());
+      window.addEventListener('focus', () => this.recoverAudio());
+
+      // 3. Initialize silent HTML5 companion audio
+      this.initSilentAudio();
     }
   }
 
-  public unlock() {
+  /**
+   * Initializes a hidden HTML5 Audio element with a 1-sample silent WAV.
+   * On iOS Safari, playing an HTML5 audio snippet keeps the page's media session
+   * active and tells iOS to hand audio focus right back to the browser when an alarm ends.
+   */
+  private initSilentAudio() {
     if (typeof window === 'undefined') return;
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    if (ctx.state === 'suspended') {
-      ctx.resume().then(() => {
-        this.isUnlocked = true;
-      }).catch(() => {});
-    } else if (ctx.state === 'running') {
-      this.isUnlocked = true;
+    try {
+      if (!this.silentAudioEl) {
+        const existing = document.getElementById('bg-audio-keepalive') as HTMLAudioElement | null;
+        if (existing) {
+          this.silentAudioEl = existing;
+        } else if (typeof Audio !== 'undefined') {
+          const audio = new Audio();
+          audio.id = 'bg-audio-keepalive';
+          audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+          audio.setAttribute('playsinline', 'true');
+          audio.setAttribute('webkit-playsinline', 'true');
+          audio.preload = 'auto';
+          this.silentAudioEl = audio;
+        }
+      }
+    } catch {
+      // ignore
     }
+  }
 
-    // Play an inaudible 1-sample buffer to warm up the iOS audio session
+  /**
+   * Primes the silent audio session during user interactions.
+   */
+  private primeSilentAudio() {
+    if (!this.silentAudioEl) {
+      this.initSilentAudio();
+    }
+    if (this.silentAudioEl) {
+      try {
+        const p = this.silentAudioEl.play();
+        if (p !== undefined) {
+          p.then(() => {
+            this.silentAudioEl?.pause();
+          }).catch(() => {});
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  private getAudioContextClass(): typeof AudioContext | null {
+    if (typeof window === 'undefined') return null;
+    return (
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext ||
+      null
+    );
+  }
+
+  private bindContextListeners(ctx: AudioContext) {
+    ctx.onstatechange = () => {
+      const state = ctx.state as string;
+      if (state === 'running') {
+        this.isUnlocked = true;
+      } else if (state === 'interrupted' || state === 'suspended' || state === 'closed') {
+        this.isUnlocked = false;
+      }
+    };
+  }
+
+  /**
+   * Plays an inaudible 1-sample buffer to warm up the iOS audio session hardware.
+   */
+  private warmUp(ctx: AudioContext) {
     try {
       const buffer = ctx.createBuffer(1, 1, 22050);
       const source = ctx.createBufferSource();
@@ -49,26 +145,173 @@ class SoundEngine {
     }
   }
 
+  /**
+   * Safely recreates the AudioContext by closing any existing dead context first
+   * (avoiding WebKit's 4-context limit).
+   */
+  public recreateContext(): AudioContext | null {
+    if (typeof window === 'undefined' || this.isRecreating) return this.ctx;
+    this.isRecreating = true;
+
+    try {
+      if (this.ctx) {
+        try {
+          this.ctx.onstatechange = null;
+          if (this.ctx.state !== 'closed') {
+            this.ctx.close().catch(() => {});
+          }
+        } catch {
+          // ignore
+        }
+        this.ctx = null;
+      }
+
+      const AudioCtx = this.getAudioContextClass();
+      if (AudioCtx) {
+        const newCtx = new AudioCtx();
+        this.bindContextListeners(newCtx);
+
+        const state = newCtx.state as string;
+        if (state === 'suspended' || state === 'interrupted') {
+          newCtx.resume().then(() => {
+            this.isUnlocked = true;
+            this.warmUp(newCtx);
+          }).catch(() => {});
+        } else if (state === 'running') {
+          this.isUnlocked = true;
+          this.warmUp(newCtx);
+        }
+
+        this.ctx = newCtx;
+      }
+    } catch {
+      // ignore
+    } finally {
+      this.isRecreating = false;
+    }
+
+    return this.ctx;
+  }
+
+  /**
+   * Called on every trusted user gesture (tap, click, key).
+   * Checks whether the audio context is healthy and running; if interrupted or suspended,
+   * immediately heals it within the active gesture.
+   */
+  private handleUserInteraction() {
+    this.primeSilentAudio();
+
+    if (!this.ctx || this.ctx.state === 'closed') {
+      this.recreateContext();
+      return;
+    }
+
+    const state = this.ctx.state as string;
+    if (state === 'interrupted') {
+      // Alarm/call interruption detected. Try resume; if not running, recreate immediately.
+      this.ctx.resume().then(() => {
+        if (this.ctx && (this.ctx.state as string) === 'running') {
+          this.isUnlocked = true;
+          this.warmUp(this.ctx);
+        } else {
+          this.recreateContext();
+        }
+      }).catch(() => {
+        this.recreateContext();
+      });
+    } else if (state === 'suspended') {
+      this.ctx.resume().then(() => {
+        this.isUnlocked = true;
+        if (this.ctx) this.warmUp(this.ctx);
+      }).catch(() => {});
+    } else if (state === 'running') {
+      this.isUnlocked = true;
+    }
+  }
+
+  public isAudioUnlocked(): boolean {
+    return this.isUnlocked;
+  }
+
+  /**
+   * Recovers audio when returning to the app or when audio settings are toggled.
+   */
+  public async recoverAudio(): Promise<void> {
+    if (typeof window === 'undefined') return;
+
+    this.primeSilentAudio();
+
+    if (!this.ctx || this.ctx.state === 'closed') {
+      this.recreateContext();
+      return;
+    }
+
+    const state = this.ctx.state as string;
+    if (state === 'running') {
+      this.isUnlocked = true;
+      return;
+    }
+
+    try {
+      await this.ctx.resume();
+      if ((this.ctx.state as string) === 'running') {
+        this.isUnlocked = true;
+        this.warmUp(this.ctx);
+        return;
+      }
+    } catch {
+      // Resume failed
+    }
+
+    // If still interrupted, closed, or not running, recreate fresh context
+    if ((this.ctx.state as string) === 'interrupted' || (this.ctx.state as string) !== 'running') {
+      this.recreateContext();
+    }
+  }
+
+  public unlock() {
+    this.recoverAudio();
+  }
+
+  public getState(): string {
+    return this.ctx ? (this.ctx.state as string) : 'uninitialized';
+  }
+
   private getContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (AudioCtx) {
-        this.ctx = new AudioCtx();
-      }
+
+    if (!this.ctx || this.ctx.state === 'closed') {
+      return this.recreateContext();
     }
-    if (this.ctx && this.ctx.state === 'suspended') {
+
+    const state = this.ctx.state as string;
+
+    // WebKit 'interrupted' state after alarm/call:
+    // If we're inside a user gesture (like rolling dice or moving checker),
+    // immediately recreate to obtain a live running context without delay.
+    if (state === 'interrupted') {
+      return this.recreateContext();
+    }
+
+    if (state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
+
     return this.ctx;
   }
 
   public setMuted(muted: boolean) {
     this.isMuted = muted;
+    if (!muted) {
+      this.recoverAudio();
+    }
   }
 
   public setVolume(vol: number) {
     this.volume = Math.max(0, Math.min(1, vol));
+    if (this.volume > 0.001 && !this.isMuted) {
+      this.recoverAudio();
+    }
   }
 
   /**

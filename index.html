@@ -31,6 +31,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   </head>
   <body class="bg-[#120b07] text-[#f7f2ea] antialiased select-none overflow-hidden overscroll-none fixed inset-0 w-full h-full font-['Noto_Sans_Georgian',system-ui,sans-serif]">
+    <!-- Audio session anchor for iOS Safari & mobile devices to recover after alarms/calls -->
+    <audio id="bg-audio-keepalive" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" preload="auto" playsinline style="display:none;"></audio>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

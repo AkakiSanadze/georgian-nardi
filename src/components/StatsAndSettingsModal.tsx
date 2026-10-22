@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AIDifficulty, GameMode, GameSettings, GameStats } from '../engine/types';
 import { BOARD_THEMES, THEME_ORDER } from '../engine/themes';
 import { haptics } from '../audio/haptics';
+import { sounds } from '../audio/soundEngine';
 import { BarChart3, Settings, Volume2, VolumeX, X, PlayCircle, Dices, Award, Smartphone, Palette, Check, Zap, RotateCcw } from 'lucide-react';
 
 interface StatsAndSettingsModalProps {
@@ -329,7 +330,13 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-xs sm:text-sm">ხმოვანი ეფექტები (Web Audio API)</span>
                   <button
-                    onClick={() => onUpdateSettings({ soundEnabled: !settings.soundEnabled })}
+                    onClick={() => {
+                      const next = !settings.soundEnabled;
+                      onUpdateSettings({ soundEnabled: next });
+                      if (next) {
+                        sounds.playClick();
+                      }
+                    }}
                     className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
                       settings.soundEnabled
                         ? 'bg-emerald-600 text-white'
@@ -528,7 +535,7 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
           ) : (
             <>
               {/* General Statistics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                 <div className="bg-black/30 p-3 rounded-2xl border border-amber-900/40 text-center">
                   <div className="text-2xl font-black text-white">{stats.gamesPlayed}</div>
                   <div className="text-xs text-amber-300/70">ხელი ჩატარდა</div>
@@ -541,7 +548,11 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
                   <div className="text-2xl font-black text-amber-400">{stats.marsWon}</div>
                   <div className="text-xs text-amber-300/70">მოგებული მარსი</div>
                 </div>
-                <div className="bg-black/30 p-3 rounded-2xl border border-amber-900/40 text-center">
+                <div className="bg-black/30 p-3 rounded-2xl border border-purple-900/40 text-center">
+                  <div className="text-2xl font-black text-purple-400">{stats.koksiWon || 0}</div>
+                  <div className="text-xs text-purple-300/70">მოგებული კოქსი (3x)</div>
+                </div>
+                <div className="bg-black/30 p-3 rounded-2xl border border-amber-900/40 text-center col-span-2 sm:col-span-1">
                   <div className="text-2xl font-black text-red-400">{stats.daviWon}</div>
                   <div className="text-xs text-amber-300/70">დავით მოგებული</div>
                 </div>

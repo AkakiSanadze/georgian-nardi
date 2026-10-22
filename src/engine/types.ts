@@ -114,6 +114,8 @@ export interface GameStats {
   gamesWon: number;
   marsWon: number;
   marsLost: number;
+  koksiWon?: number;
+  koksiLost?: number;
   daviWon: number;
   daviAccepted: number;
   diceRollsCount: Record<string, number>; // e.g. "6-6": 12, "6-5": 24

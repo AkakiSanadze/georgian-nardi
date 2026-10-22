@@ -183,5 +183,15 @@ describe('Georgian Backgammon Rules Engine', () => {
     board.points[3] = { owner: null, count: 0 };
     board.points[10] = { owner: 'BLACK', count: 1 };
     expect(isKoksiLoss(board, 'BLACK')).toBe(false);
+
+    // If BLACK has a checker on the BAR -> Koksi again
+    board.bar.BLACK = 1;
+    expect(isKoksiLoss(board, 'BLACK')).toBe(true);
+    board.bar.BLACK = 0;
+
+    // If BLACK has borne off even 1 checker -> neither Koksi nor Mars
+    board.borneOff.BLACK = 1;
+    board.points[3] = { owner: 'BLACK', count: 1 };
+    expect(isKoksiLoss(board, 'BLACK')).toBe(false);
   });
 });

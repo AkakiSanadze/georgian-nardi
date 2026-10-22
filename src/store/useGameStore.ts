@@ -167,6 +167,9 @@ export function useGameStore() {
   useEffect(() => {
     sounds.setMuted(!settings.soundEnabled);
     sounds.setVolume(settings.soundVolume);
+    if (settings.soundEnabled) {
+      sounds.unlock();
+    }
     haptics.setEnabled(settings.hapticFeedbackEnabled ?? true);
   }, [settings.soundEnabled, settings.soundVolume, settings.hapticFeedbackEnabled]);
 
@@ -181,6 +184,9 @@ export function useGameStore() {
       }
       sounds.setMuted(!updated.soundEnabled);
       sounds.setVolume(updated.soundVolume);
+      if (updated.soundEnabled) {
+        sounds.unlock();
+      }
       haptics.setEnabled(updated.hapticFeedbackEnabled ?? true);
       return updated;
     });
@@ -1085,8 +1091,10 @@ export function useGameStore() {
       ...prev,
       gamesPlayed: prev.gamesPlayed + 1,
       gamesWon: winner === 'WHITE' ? prev.gamesWon + 1 : prev.gamesWon,
-      marsWon: winner === 'WHITE' && isMars ? prev.marsWon + 1 : prev.marsWon,
-      marsLost: winner === 'BLACK' && isMars ? prev.marsLost + 1 : prev.marsLost,
+      marsWon: winner === 'WHITE' && isMars && !isKoksi ? prev.marsWon + 1 : prev.marsWon,
+      marsLost: winner === 'BLACK' && isMars && !isKoksi ? prev.marsLost + 1 : prev.marsLost,
+      koksiWon: winner === 'WHITE' && isKoksi ? (prev.koksiWon || 0) + 1 : (prev.koksiWon || 0),
+      koksiLost: winner === 'BLACK' && isKoksi ? (prev.koksiLost || 0) + 1 : (prev.koksiLost || 0),
       daviWon: winner === 'WHITE' && isDavi ? prev.daviWon + 1 : prev.daviWon,
       daviAccepted: isDavi ? prev.daviAccepted + 1 : prev.daviAccepted,
     }));
