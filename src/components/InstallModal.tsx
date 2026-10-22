@@ -46,14 +46,26 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-3 bg-black/80 backdrop-blur-sm animate-fade-in">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-3 bg-black/80 backdrop-blur-sm animate-fade-in"
+    >
       <div className="relative w-full max-w-md bg-gradient-to-b from-[#2a170d] to-[#170a04] border-t-2 sm:border-2 border-amber-600/60 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_20px_50px_rgba(0,0,0,0.9)] text-[#f7f2ea] safe-pb animate-sheet-up sm:animate-fade-in">
-        {/* iOS Grab Handle for Mobile */}
-        <div className="w-10 h-1 rounded-full bg-amber-700/60 mx-auto -mt-1 mb-3 sm:hidden" />
+        {/* iOS Grab Handle for Mobile (Tap to close) */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="დახურვა"
+          className="w-full pt-1 pb-3 flex items-center justify-center sm:hidden shrink-0 active:opacity-60 cursor-pointer group"
+        >
+          <div className="w-12 h-1.5 rounded-full bg-amber-600/70 group-hover:bg-amber-500 transition" />
+        </button>
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-full bg-amber-950/70 border border-amber-700/50 text-amber-300 hover:text-white hover:bg-amber-800 transition"
+          className="absolute top-4 right-4 p-2 rounded-full bg-amber-950/70 border border-amber-700/50 text-amber-300 hover:text-white hover:bg-amber-800 transition shadow active:scale-95"
         >
           <X className="w-5 h-5" />
         </button>

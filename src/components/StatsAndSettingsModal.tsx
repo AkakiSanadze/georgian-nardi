@@ -3,7 +3,7 @@ import { AIDifficulty, GameMode, GameSettings, GameStats } from '../engine/types
 import { BOARD_THEMES, THEME_ORDER } from '../engine/themes';
 import { haptics } from '../audio/haptics';
 import { sounds } from '../audio/soundEngine';
-import { BarChart3, Settings, Volume2, VolumeX, X, PlayCircle, Dices, Award, Smartphone, Palette, Check, Zap, RotateCcw } from 'lucide-react';
+import { BarChart3, Settings, Volume2, VolumeX, X, PlayCircle, Dices, Award, Smartphone, Palette, Check, Zap, RotateCcw, ChevronDown } from 'lucide-react';
 
 interface StatsAndSettingsModalProps {
   isOpen: boolean;
@@ -168,6 +168,17 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
         </button>
       )}
 
+      {isMatchInProgress && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full py-2.5 rounded-2xl bg-amber-900/40 hover:bg-amber-800/60 border border-amber-600/50 text-amber-200 font-bold text-xs flex items-center justify-center gap-2 transition"
+        >
+          <X className="w-4 h-4 text-amber-400" />
+          მიმდინარე თამაშის გაგრძელება (დაფაზე დაბრუნება)
+        </button>
+      )}
+
       {onOpenInstall && (
         <button
           onClick={() => {
@@ -184,20 +195,33 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+    >
       <div className="relative w-full max-w-2xl bg-gradient-to-b from-[#2d180d] to-[#150a04] border-t-2 sm:border-2 sm:border-4 border-amber-600/60 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-amber-100 max-h-[88vh] sm:max-h-[90vh] safe-pb animate-sheet-up sm:animate-fade-in">
-        {/* iOS Grab Handle for Mobile */}
-        <div className="w-10 h-1 rounded-full bg-amber-700/60 mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+        {/* iOS Grab Handle for Mobile (Tap to close) */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="დახურვა"
+          className="w-full pt-3 pb-1 flex items-center justify-center sm:hidden shrink-0 active:opacity-60 cursor-pointer group"
+        >
+          <div className="w-12 h-1.5 rounded-full bg-amber-600/70 group-hover:bg-amber-500 transition" />
+        </button>
 
         {/* Header Tabs */}
-        <div className="flex items-center justify-between px-3 sm:px-4 py-3 sm:p-4 border-b border-amber-900/40 bg-black/40 shrink-0">
-          <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2.5 sm:py-3.5 border-b border-amber-900/40 bg-black/40 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0 overflow-x-auto no-scrollbar py-0.5">
             <button
+              type="button"
               onClick={() => setTab('NEW_GAME')}
-              className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 transition whitespace-nowrap ${
+              className={`shrink-0 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 transition whitespace-nowrap ${
                 tab === 'NEW_GAME'
                   ? 'bg-amber-600 text-white shadow-md'
-                  : 'bg-black/30 text-amber-300/70 hover:bg-black/50'
+                  : 'bg-black/40 text-amber-300/70 hover:bg-black/60'
               }`}
             >
               <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
@@ -205,11 +229,12 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => setTab('SETTINGS')}
-              className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 transition whitespace-nowrap ${
+              className={`shrink-0 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 transition whitespace-nowrap ${
                 tab === 'SETTINGS'
                   ? 'bg-amber-600 text-white shadow-md'
-                  : 'bg-black/30 text-amber-300/70 hover:bg-black/50'
+                  : 'bg-black/40 text-amber-300/70 hover:bg-black/60'
               }`}
             >
               <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -217,11 +242,12 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => setTab('STATS')}
-              className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 transition whitespace-nowrap ${
+              className={`shrink-0 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 transition whitespace-nowrap ${
                 tab === 'STATS'
                   ? 'bg-amber-600 text-white shadow-md'
-                  : 'bg-black/30 text-amber-300/70 hover:bg-black/50'
+                  : 'bg-black/40 text-amber-300/70 hover:bg-black/60'
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -230,8 +256,10 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 sm:p-2 rounded-xl bg-black/40 hover:bg-black/60 border border-amber-800/40 text-amber-200 transition shrink-0 ml-1"
+            aria-label="დახურვა"
+            className="p-2 sm:p-2.5 rounded-xl bg-amber-950/70 hover:bg-amber-900 border border-amber-700/60 text-amber-200 hover:text-white transition shrink-0 z-10 shadow active:scale-95 flex items-center justify-center ml-1"
           >
             <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
@@ -603,6 +631,19 @@ export const StatsAndSettingsModal: React.FC<StatsAndSettingsModalProps> = ({
               </div>
             </>
           )}
+        </div>
+
+        {/* Modal Sticky Footer / Close & Return to Game */}
+        <div className="p-3 sm:p-4 border-t border-amber-900/40 bg-black/60 backdrop-blur-sm shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 sm:py-3 rounded-2xl bg-gradient-to-r from-amber-950/90 to-amber-900/90 hover:bg-amber-800 border border-amber-600/60 text-amber-200 hover:text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition active:scale-98"
+          >
+            <ChevronDown className="w-4 h-4 sm:hidden" />
+            <X className="w-4 h-4 hidden sm:inline" />
+            <span>დახურვა (დაფაზე დაბრუნება)</span>
+          </button>
         </div>
       </div>
     </div>

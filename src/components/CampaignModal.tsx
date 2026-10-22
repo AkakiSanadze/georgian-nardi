@@ -1,7 +1,7 @@
 import React from 'react';
 import { CampaignRound } from '../engine/types';
 import { CAMPAIGN_ROUNDS } from '../engine/constants';
-import { Lock, MapPin, Trophy, X, CheckCircle2 } from 'lucide-react';
+import { Lock, MapPin, Trophy, X, CheckCircle2, ChevronDown } from 'lucide-react';
 
 interface CampaignModalProps {
   isOpen: boolean;
@@ -21,29 +21,43 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+    >
       <div className="relative w-full max-w-4xl max-h-[88vh] sm:max-h-[90vh] bg-gradient-to-b from-[#2d180d] to-[#170a04] border-t-2 sm:border-2 sm:border-4 border-amber-600/60 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-amber-100 safe-pb animate-sheet-up sm:animate-fade-in">
-        {/* iOS Grab Handle for Mobile */}
-        <div className="w-10 h-1 rounded-full bg-amber-700/60 mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+        {/* iOS Grab Handle for Mobile (Tap to close) */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="დახურვა"
+          className="w-full pt-3 pb-1 flex items-center justify-center sm:hidden shrink-0 active:opacity-60 cursor-pointer group"
+        >
+          <div className="w-12 h-1.5 rounded-full bg-amber-600/70 group-hover:bg-amber-500 transition" />
+        </button>
 
         {/* Header */}
-        <div className="p-3.5 sm:p-6 border-b border-amber-900/40 flex items-center justify-between bg-black/30 shrink-0">
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="p-2 sm:p-2.5 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-amber-300">
+        <div className="p-3.5 sm:p-6 border-b border-amber-900/40 flex items-center justify-between gap-2 bg-black/30 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0 pr-1">
+            <div className="p-2 sm:p-2.5 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-amber-300 shrink-0">
               <Trophy className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" />
             </div>
-            <div>
-              <h2 className="text-base sm:text-2xl font-black text-white flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base sm:text-2xl font-black text-white flex items-center gap-2 truncate">
                 საქართველოს პირველობა
               </h2>
-              <p className="text-[11px] sm:text-sm text-amber-300/70 line-clamp-1">
+              <p className="text-[11px] sm:text-sm text-amber-300/70 truncate">
                 12-რაუნდიანი კამპანია — თბილისიდან ოქროს კამათლამდე!
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 sm:p-2 rounded-xl bg-black/40 hover:bg-black/60 border border-amber-800/40 text-amber-200 transition"
+            aria-label="დახურვა"
+            className="p-2 sm:p-2.5 rounded-xl bg-amber-950/70 hover:bg-amber-900 border border-amber-700/60 text-amber-200 hover:text-white transition shrink-0 z-10 shadow active:scale-95"
           >
             <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
@@ -127,6 +141,19 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               </div>
             );
           })}
+        </div>
+
+        {/* Sticky Footer */}
+        <div className="p-3 sm:p-4 border-t border-amber-900/40 bg-black/60 backdrop-blur-sm shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 sm:py-3 rounded-2xl bg-gradient-to-r from-amber-950/90 to-amber-900/90 hover:bg-amber-800 border border-amber-600/60 text-amber-200 hover:text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition active:scale-98"
+          >
+            <ChevronDown className="w-4 h-4 sm:hidden" />
+            <X className="w-4 h-4 hidden sm:inline" />
+            <span>დახურვა (დაფაზე დაბრუნება)</span>
+          </button>
         </div>
       </div>
     </div>

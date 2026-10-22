@@ -114,6 +114,14 @@ export const App: React.FC = () => {
         }
       }
 
+      if (e.key === 'Escape') {
+        if (statsModalTab !== null) setStatsModalTab(null);
+        if (isCampaignOpen) setIsCampaignOpen(false);
+        if (isInstallOpen) setIsInstallOpen(false);
+        if (showFullHistory) setShowFullHistory(false);
+        return;
+      }
+
       if (isCampaignOpen || statsModalTab !== null || isInstallOpen) return;
 
       if (e.code === 'Space' || e.code === 'Enter' || e.key === ' ' || e.key === 'Enter') {
@@ -160,6 +168,7 @@ export const App: React.FC = () => {
     isCampaignOpen,
     statsModalTab,
     isInstallOpen,
+    showFullHistory,
     store.turnCompletedWaitingConfirm,
     store.phase,
     store.isRolling,
@@ -167,6 +176,32 @@ export const App: React.FC = () => {
     isHumanTurn,
     canRoll,
   ]);
+
+  // Support swipe-back / Android back navigation to dismiss active modals
+  const isAnyModalOpen =
+    statsModalTab !== null || isCampaignOpen || isInstallOpen || showFullHistory;
+
+  useEffect(() => {
+    if (!isAnyModalOpen) return;
+
+    window.history.pushState({ modalOpen: true }, '');
+
+    const handlePopState = () => {
+      setStatsModalTab(null);
+      setIsCampaignOpen(false);
+      setIsInstallOpen(false);
+      setShowFullHistory(false);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (window.history.state?.modalOpen) {
+        window.history.back();
+      }
+    };
+  }, [isAnyModalOpen]);
 
   const currentTheme = store.settings.boardTheme || 'CLASSIC_WALNUT';
   const themeConfig = BOARD_THEMES[currentTheme] || BOARD_THEMES.CLASSIC_WALNUT;
