@@ -525,15 +525,16 @@ export const chooseBestMoveSequence = (
   }));
   scoredCandidates.sort((a, b) => b.score1Ply - a.score1Ply);
 
-  // If candidate 1 is overwhelmingly superior (> 40 pts ahead), pick it immediately
+  // If candidate 1 is clearly superior (> 25 pts ahead), pick it immediately
   if (
     scoredCandidates.length === 1 ||
-    scoredCandidates[0].score1Ply - scoredCandidates[1].score1Ply > 40
+    scoredCandidates[0].score1Ply - scoredCandidates[1].score1Ply > 25
   ) {
     return scoredCandidates[0].seq;
   }
 
-  const topCandidates = scoredCandidates.slice(0, Math.min(5, scoredCandidates.length));
+  // Evaluate top 3 candidates for fast, ultra-responsive play on mobile
+  const topCandidates = scoredCandidates.slice(0, Math.min(3, scoredCandidates.length));
   let bestGMSeq = topCandidates[0].seq;
   let bestGMScore = -Infinity;
   const opponent = getOpponent(player);

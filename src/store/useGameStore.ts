@@ -268,10 +268,12 @@ export function useGameStore() {
     () => saved?.turnCompletedWaitingConfirm || false
   );
 
-  // Auto Play
+  // Auto Play & Turn Control Refs
   const [isAutoPlay, setIsAutoPlay] = useState<boolean>(false);
   const hasAutoActivatedBearOffRef = useRef<boolean>(false);
   const autoPlayRunningRef = useRef<boolean>(false);
+  const rollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isEndingTurnRef = useRef<boolean>(false);
 
   // Result
   const [lastRoundResult, setLastRoundResult] = useState<RoundResult | null>(
@@ -474,6 +476,11 @@ export function useGameStore() {
     setIsAutoPlay(false);
     hasAutoActivatedBearOffRef.current = false;
     autoPlayRunningRef.current = false;
+    if (rollTimerRef.current) {
+      clearTimeout(rollTimerRef.current);
+      rollTimerRef.current = null;
+    }
+    isEndingTurnRef.current = false;
 
     setDaviState({
       level: 0,
@@ -576,14 +583,24 @@ export function useGameStore() {
     setDice([d1, d2]);
     setRollKey((prev) => prev + 1);
     setIsRolling(true);
+    setPhase('MOVING'); // Immediately transition to prevent duplicate roll triggers in auto or manual
     setTurnCompletedWaitingConfirm(false);
-    sounds.playDiceRoll();
-    haptics.trigger('medium');
+    try {
+      sounds.playDiceRoll();
+    } catch {}
+    try {
+      haptics.trigger('medium');
+    } catch {}
 
     const rollingBoard = board;
     const rollingPlayer = turn;
 
-    setTimeout(() => {
+    if (rollTimerRef.current) {
+      clearTimeout(rollTimerRef.current);
+      rollTimerRef.current = null;
+    }
+
+    rollTimerRef.current = setTimeout(() => {
       setDiceRemaining(diceArr);
       setDiceName(georgianName);
       setIsRolling(false);
@@ -613,11 +630,12 @@ export function useGameStore() {
 
       if (sequences.length === 0) {
         addLog(`⚠️ ${playerName} სვლა არ აქვს! სვლა გადადის.`);
-        setTimeout(() => {
+        isEndingTurnRef.current = true;
+        rollTimerRef.current = setTimeout(() => {
+          isEndingTurnRef.current = false;
           endTurn(rollingBoard, rollingPlayer);
-        }, 1200);
+        }, 1100);
       } else {
-        setPhase('MOVING');
         // If player has checkers on the BAR, auto-select BAR for convenience!
         if (rollingBoard.bar[rollingPlayer] > 0) {
           const chains = getValidChainsFromPoint(rollingBoard, rollingPlayer, diceArr, 'BAR');
@@ -916,6 +934,12 @@ export function useGameStore() {
     setHintSequence(null);
     setTurnCompletedWaitingConfirm(false);
 
+    if (rollTimerRef.current) {
+      clearTimeout(rollTimerRef.current);
+      rollTimerRef.current = null;
+    }
+    isEndingTurnRef.current = false;
+
     // If it's AI's turn (in Campaign or Quick match), trigger AI pipeline
     if (activeMode !== 'PASS_AND_PLAY' && nextTurn === 'BLACK') {
       setPhase('AI_THINKING');
@@ -1165,128 +1189,139 @@ export function useGameStore() {
     let isCancelled = false;
 
     const runAITurn = async () => {
-      await new Promise((r) => setTimeout(r, 550));
-      if (isCancelled) return;
+      try {
+        await new Promise((r) => setTimeout(r, 550));
+        if (isCancelled) return;
 
-      let diceArr: number[];
+        let diceArr: number[];
 
-      // Check if resuming an AI turn where dice were already rolled
-      const existingRem = stateRef.current.diceRemaining;
-      const existingDice = stateRef.current.dice;
+        // Check if resuming an AI turn where dice were already rolled
+        const existingRem = stateRef.current.diceRemaining;
+        const existingDice = stateRef.current.dice;
 
-      if (existingRem && existingRem.length > 0 && existingDice) {
-        diceArr = [...existingRem];
-      } else {
-        // Step 1: Check if AI offers Davi before rolling
-        if (shouldAIOfferDavi(currentBInitial, 'BLACK', currentDavi, currentMatchScore, diff)) {
-          handleOfferDavi('BLACK');
-          return; // Wait for player response in DAVI_OFFERED phase
+        if (existingRem && existingRem.length > 0 && existingDice) {
+          diceArr = [...existingRem];
+        } else {
+          // Step 1: Check if AI offers Davi before rolling
+          if (shouldAIOfferDavi(currentBInitial, 'BLACK', currentDavi, currentMatchScore, diff)) {
+            handleOfferDavi('BLACK');
+            return; // Wait for player response in DAVI_OFFERED phase
+          }
+
+          // Step 2: Roll dice with 3D animation
+          const d1 = rollFairDie();
+          const d2 = rollFairDie();
+          diceArr = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
+          const georgianName = getGeorgianDiceName(d1, d2);
+
+          setDice([d1, d2]);
+          setRollKey((prev) => prev + 1);
+          setIsRolling(true);
+          try {
+            sounds.playDiceRoll();
+          } catch {}
+
+          await new Promise((r) => setTimeout(r, 750));
+          if (isCancelled) return;
+
+          setDiceRemaining(diceArr);
+          setDiceName(georgianName);
+          setIsRolling(false);
+          addLog(`შავმა გააგორა: ${d1}-${d2} (${georgianName})`);
+
+          // Record stat
+          const high = Math.max(d1, d2);
+          const low = Math.min(d1, d2);
+          const key = `${high}-${low}`;
+          setStats((prev) => ({
+            ...prev,
+            diceRollsCount: {
+              ...prev.diceRollsCount,
+              [key]: (prev.diceRollsCount[key] || 0) + 1,
+            },
+          }));
         }
 
-        // Step 2: Roll dice with 3D animation
-        const d1 = rollFairDie();
-        const d2 = rollFairDie();
-        diceArr = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
-        const georgianName = getGeorgianDiceName(d1, d2);
-
-        setDice([d1, d2]);
-        setRollKey((prev) => prev + 1);
-        setIsRolling(true);
-        sounds.playDiceRoll();
-
-        await new Promise((r) => setTimeout(r, 750));
-        if (isCancelled) return;
-
-        setDiceRemaining(diceArr);
-        setDiceName(georgianName);
-        setIsRolling(false);
-        addLog(`შავმა გააგორა: ${d1}-${d2} (${georgianName})`);
-
-        // Record stat
-        const high = Math.max(d1, d2);
-        const low = Math.min(d1, d2);
-        const key = `${high}-${low}`;
-        setStats((prev) => ({
-          ...prev,
-          diceRollsCount: {
-            ...prev.diceRollsCount,
-            [key]: (prev.diceRollsCount[key] || 0) + 1,
-          },
-        }));
-      }
-
-      const sequences = generateLegalTurnSequences(
-        currentBInitial,
-        'BLACK',
-        diceArr,
-        !stateRef.current.settings.allowHitAndCoverInHome
-      );
-
-      if (sequences.length === 0) {
-        addLog('⚠️ შავს სვლა არ აქვს!');
-        await new Promise((r) => setTimeout(r, 1000));
-        if (isCancelled) return;
-        endTurn(currentBInitial, 'BLACK');
-        return;
-      }
-
-      // Choose best sequence
-      const bestSeq = chooseBestMoveSequence(
-        currentBInitial,
-        'BLACK',
-        sequences,
-        diff,
-        personality
-      );
-      if (!bestSeq) {
-        endTurn(currentBInitial, 'BLACK');
-        return;
-      }
-
-      // Execute each sub-move with realistic visual delays
-      let currentB = currentBInitial;
-      const currentDiceRem = [...diceArr];
-
-      for (let i = 0; i < bestSeq.moves.length; i++) {
-        await new Promise((r) => setTimeout(r, 520));
-        if (isCancelled) return;
-
-        const m = bestSeq.moves[i];
-        currentB = applySingleMove(
-          currentB,
+        const sequences = generateLegalTurnSequences(
+          currentBInitial,
           'BLACK',
-          m,
+          diceArr,
           !stateRef.current.settings.allowHitAndCoverInHome
         );
 
-        // Remove die used
-        const dIdx = currentDiceRem.indexOf(m.dieUsed);
-        if (dIdx !== -1) currentDiceRem.splice(dIdx, 1);
-
-        setBoard(currentB);
-        setDiceRemaining([...currentDiceRem]);
-
-        if (m.to === 'OFF') {
-          sounds.playBearOff();
-        } else if (m.isHit) {
-          sounds.playCheckerHit();
-        } else {
-          sounds.playCheckerMove();
-        }
-
-        if (m.isHomeBoardHit) {
-          addLog(`🔒 შავმა მოკლა ქვა საკუთარ კარში და ჩაიკეტა!`);
-        }
-
-        if (isRoundWon(currentB, 'BLACK')) {
-          handleRoundVictory(currentB, 'BLACK');
+        if (sequences.length === 0) {
+          addLog('⚠️ შავს სვლა არ აქვს!');
+          await new Promise((r) => setTimeout(r, 1000));
+          if (isCancelled) return;
+          endTurn(currentBInitial, 'BLACK');
           return;
         }
-      }
 
-      await new Promise((r) => setTimeout(r, 450));
-      if (isCancelled) return;
-      endTurn(currentB, 'BLACK');
+        // Choose best sequence
+        const bestSeq = chooseBestMoveSequence(
+          currentBInitial,
+          'BLACK',
+          sequences,
+          diff,
+          personality
+        );
+        if (!bestSeq) {
+          endTurn(currentBInitial, 'BLACK');
+          return;
+        }
+
+        // Execute each sub-move with realistic visual delays
+        let currentB = currentBInitial;
+        const currentDiceRem = [...diceArr];
+
+        for (let i = 0; i < bestSeq.moves.length; i++) {
+          await new Promise((r) => setTimeout(r, 520));
+          if (isCancelled) return;
+
+          const m = bestSeq.moves[i];
+          currentB = applySingleMove(
+            currentB,
+            'BLACK',
+            m,
+            !stateRef.current.settings.allowHitAndCoverInHome
+          );
+
+          // Remove die used
+          const dIdx = currentDiceRem.indexOf(m.dieUsed);
+          if (dIdx !== -1) currentDiceRem.splice(dIdx, 1);
+
+          setBoard(currentB);
+          setDiceRemaining([...currentDiceRem]);
+
+          try {
+            if (m.to === 'OFF') {
+              sounds.playBearOff();
+            } else if (m.isHit) {
+              sounds.playCheckerHit();
+            } else {
+              sounds.playCheckerMove();
+            }
+          } catch {}
+
+          if (m.isHomeBoardHit) {
+            addLog(`🔒 შავმა მოკლა ქვა საკუთარ კარში და ჩაიკეტა!`);
+          }
+
+          if (isRoundWon(currentB, 'BLACK')) {
+            handleRoundVictory(currentB, 'BLACK');
+            return;
+          }
+        }
+
+        await new Promise((r) => setTimeout(r, 450));
+        if (isCancelled) return;
+        endTurn(currentB, 'BLACK');
+      } catch (err) {
+        console.error('AI Turn error:', err);
+        if (!isCancelled) {
+          endTurn(stateRef.current.board, 'BLACK');
+        }
+      }
     };
 
     runAITurn();
@@ -1367,143 +1402,149 @@ export function useGameStore() {
 
     // 3. If in MOVING phase: play complete sequence of legal moves
     if (phase === 'MOVING') {
-      if (isRolling) return;
+      if (isRolling || isEndingTurnRef.current) return;
       if (autoPlayRunningRef.current) return; // Prevent duplicate re-entry
 
       autoPlayRunningRef.current = true;
       let cancelled = false;
 
       const runAutoMoves = async () => {
-        await new Promise((r) => setTimeout(r, 380));
-        if (cancelled || !stateRef.current.isAutoPlay) {
-          autoPlayRunningRef.current = false;
-          return;
-        }
-
-        const currentBInitial = stateRef.current.board;
-        const currentDiceInitial = [...stateRef.current.diceRemaining];
-        const currentTurn = stateRef.current.turn;
-        const forbidLock = !stateRef.current.settings.allowHitAndCoverInHome;
-
-        if (currentDiceInitial.length === 0) {
-          autoPlayRunningRef.current = false;
-          endTurn(currentBInitial, currentTurn);
-          return;
-        }
-
-        const sequences = generateLegalTurnSequences(
-          currentBInitial,
-          currentTurn,
-          currentDiceInitial,
-          forbidLock
-        );
-
-        if (sequences.length === 0) {
-          addLog('⚠️ სვლა აღარ არის — სვლა გადადის.');
-          await new Promise((r) => setTimeout(r, 550));
-          autoPlayRunningRef.current = false;
-          if (cancelled || !stateRef.current.isAutoPlay) return;
-          endTurn(currentBInitial, currentTurn);
-          return;
-        }
-
-        const bestSeq = chooseBestMoveSequence(
-          currentBInitial,
-          currentTurn,
-          sequences,
-          'GRANDMASTER'
-        );
-
-        if (!bestSeq || bestSeq.moves.length === 0) {
-          autoPlayRunningRef.current = false;
-          endTurn(currentBInitial, currentTurn);
-          return;
-        }
-
-        let currentB = currentBInitial;
-        const currentDiceRem = [...currentDiceInitial];
-
-        for (let i = 0; i < bestSeq.moves.length; i++) {
-          await new Promise((r) => setTimeout(r, 450));
-          if (cancelled) {
+        try {
+          await new Promise((r) => setTimeout(r, 380));
+          if (cancelled || !stateRef.current.isAutoPlay) {
             autoPlayRunningRef.current = false;
             return;
           }
 
-          if (!stateRef.current.isAutoPlay) {
+          const currentBInitial = stateRef.current.board;
+          const currentDiceInitial = [...stateRef.current.diceRemaining];
+          const currentTurn = stateRef.current.turn;
+          const forbidLock = !stateRef.current.settings.allowHitAndCoverInHome;
+
+          if (currentDiceInitial.length === 0) {
             autoPlayRunningRef.current = false;
-            // Smoothly restore manual controls if the user paused auto-play mid-turn
-            if (currentDiceRem.length === 0) {
-              if (stateRef.current.settings.autoConfirmTurn) {
-                endTurn(currentB, currentTurn);
-              } else {
-                setTurnCompletedWaitingConfirm(true);
-                addLog('✅ სვლა დასრულებულია — დააჭირე „დადასტურებას“.');
-              }
-            } else {
-              const remSeq = generateLegalTurnSequences(
-                currentB,
-                currentTurn,
-                currentDiceRem,
-                forbidLock
-              );
-              if (remSeq.length === 0) {
+            endTurn(currentBInitial, currentTurn);
+            return;
+          }
+
+          const sequences = generateLegalTurnSequences(
+            currentBInitial,
+            currentTurn,
+            currentDiceInitial,
+            forbidLock
+          );
+
+          if (sequences.length === 0) {
+            addLog('⚠️ სვლა აღარ არის — სვლა გადადის.');
+            await new Promise((r) => setTimeout(r, 550));
+            autoPlayRunningRef.current = false;
+            if (cancelled) return;
+            endTurn(currentBInitial, currentTurn);
+            return;
+          }
+
+          const bestSeq = chooseBestMoveSequence(
+            currentBInitial,
+            currentTurn,
+            sequences,
+            'GRANDMASTER'
+          );
+
+          if (!bestSeq || bestSeq.moves.length === 0) {
+            autoPlayRunningRef.current = false;
+            endTurn(currentBInitial, currentTurn);
+            return;
+          }
+
+          let currentB = currentBInitial;
+          const currentDiceRem = [...currentDiceInitial];
+
+          for (let i = 0; i < bestSeq.moves.length; i++) {
+            await new Promise((r) => setTimeout(r, 450));
+            if (cancelled) {
+              autoPlayRunningRef.current = false;
+              return;
+            }
+
+            if (!stateRef.current.isAutoPlay) {
+              autoPlayRunningRef.current = false;
+              // Smoothly restore manual controls if the user paused auto-play mid-turn
+              if (currentDiceRem.length === 0) {
                 if (stateRef.current.settings.autoConfirmTurn) {
                   endTurn(currentB, currentTurn);
                 } else {
                   setTurnCompletedWaitingConfirm(true);
+                  addLog('✅ სვლა დასრულებულია — დააჭირე „დადასტურებას“.');
                 }
-              } else if (currentB.bar[currentTurn] > 0) {
-                const barChains = getValidChainsFromPoint(
+              } else {
+                const remSeq = generateLegalTurnSequences(
                   currentB,
                   currentTurn,
                   currentDiceRem,
-                  'BAR'
+                  forbidLock
                 );
-                if (barChains.size > 0) {
-                  setSelectedPoint('BAR');
-                  setLegalTargets(Array.from(barChains.keys()));
+                if (remSeq.length === 0) {
+                  if (stateRef.current.settings.autoConfirmTurn) {
+                    endTurn(currentB, currentTurn);
+                  } else {
+                    setTurnCompletedWaitingConfirm(true);
+                  }
+                } else if (currentB.bar[currentTurn] > 0) {
+                  const barChains = getValidChainsFromPoint(
+                    currentB,
+                    currentTurn,
+                    currentDiceRem,
+                    'BAR'
+                  );
+                  if (barChains.size > 0) {
+                    setSelectedPoint('BAR');
+                    setLegalTargets(Array.from(barChains.keys()));
+                  }
                 }
               }
+              return;
+            }
+
+            const m = bestSeq.moves[i];
+            currentB = applySingleMove(currentB, currentTurn, m, forbidLock);
+
+            const dIdx = currentDiceRem.indexOf(m.dieUsed);
+            if (dIdx !== -1) {
+              currentDiceRem.splice(dIdx, 1);
+            }
+
+            setBoard(currentB);
+            setDiceRemaining([...currentDiceRem]);
+            playMoveSoundAndLog(m);
+
+            if (isRoundWon(currentB, currentTurn)) {
+              autoPlayRunningRef.current = false;
+              setIsAutoPlay(false);
+              handleRoundVictory(currentB, currentTurn);
+              return;
+            }
+          }
+
+          await new Promise((r) => setTimeout(r, 400));
+          autoPlayRunningRef.current = false;
+          if (cancelled) return;
+
+          if (!stateRef.current.isAutoPlay) {
+            if (stateRef.current.settings.autoConfirmTurn) {
+              endTurn(currentB, currentTurn);
+            } else {
+              setTurnCompletedWaitingConfirm(true);
+              addLog('✅ სვლა დასრულებულია — დააჭირე „დადასტურებას“.');
             }
             return;
           }
 
-          const m = bestSeq.moves[i];
-          currentB = applySingleMove(currentB, currentTurn, m, forbidLock);
-
-          const dIdx = currentDiceRem.indexOf(m.dieUsed);
-          if (dIdx !== -1) {
-            currentDiceRem.splice(dIdx, 1);
-          }
-
-          setBoard(currentB);
-          setDiceRemaining([...currentDiceRem]);
-          playMoveSoundAndLog(m);
-
-          if (isRoundWon(currentB, currentTurn)) {
-            autoPlayRunningRef.current = false;
-            setIsAutoPlay(false);
-            handleRoundVictory(currentB, currentTurn);
-            return;
-          }
+          endTurn(currentB, currentTurn);
+        } catch (err) {
+          console.error('AutoPlay error:', err);
+          autoPlayRunningRef.current = false;
+          endTurn(stateRef.current.board, stateRef.current.turn);
         }
-
-        await new Promise((r) => setTimeout(r, 400));
-        autoPlayRunningRef.current = false;
-        if (cancelled) return;
-
-        if (!stateRef.current.isAutoPlay) {
-          if (stateRef.current.settings.autoConfirmTurn) {
-            endTurn(currentB, currentTurn);
-          } else {
-            setTurnCompletedWaitingConfirm(true);
-            addLog('✅ სვლა დასრულებულია — დააჭირე „დადასტურებას“.');
-          }
-          return;
-        }
-
-        endTurn(currentB, currentTurn);
       };
 
       runAutoMoves();
@@ -1521,6 +1562,19 @@ export function useGameStore() {
     turnCompletedWaitingConfirm,
     gameMode,
   ]);
+
+  /**
+   * Watchdog Engine: Automatically recovers game state if phase/turn get misaligned
+   */
+  useEffect(() => {
+    // If AI has the turn in quick/campaign match but phase got stuck in MOVING or WAITING_FOR_ROLL_OR_DAVI
+    if (gameMode !== 'PASS_AND_PLAY' && turn === 'BLACK') {
+      if (phase === 'MOVING' || phase === 'WAITING_FOR_ROLL_OR_DAVI') {
+        console.warn('Recovering AI turn from mismatched phase:', phase);
+        setPhase('AI_THINKING');
+      }
+    }
+  }, [turn, phase, gameMode]);
 
   /**
    * AI response when human offers Davi

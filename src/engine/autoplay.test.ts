@@ -101,4 +101,42 @@ describe('Auto-Play & Bear-Off Engine', () => {
     // Borne off should have increased by 2
     expect(currentB.borneOff.WHITE).toBe(13);
   });
+
+  it('handles blocked BAR entry with 0 legal moves without crashing or entering infinite loop', () => {
+    // Construct board where White is on BAR and opponent has all points 19..24 blocked except point 23
+    const points = Array.from({ length: 24 }, () => ({
+      owner: null as Player | null,
+      count: 0,
+    }));
+    // Black blocks points 18, 19, 20, 21, 23 (indices 18, 19, 20, 21, 23)
+    points[18] = { owner: 'BLACK', count: 2 };
+    points[19] = { owner: 'BLACK', count: 2 };
+    points[20] = { owner: 'BLACK', count: 3 };
+    points[21] = { owner: 'BLACK', count: 2 };
+    points[23] = { owner: 'BLACK', count: 3 };
+
+    // Point 22 is White
+    points[22] = { owner: 'WHITE', count: 2 };
+
+    const board: BoardState = {
+      points,
+      bar: { WHITE: 1, BLACK: 0 },
+      borneOff: { WHITE: 0, BLACK: 0 },
+      lockedHomeHitPoints: [],
+    };
+
+    // Roll without a 2: [6, 4], [5, 3], [6, 5]
+    for (const roll of [[6, 4], [5, 3], [6, 5], [4, 1], [6, 1]]) {
+      const seqs = generateLegalTurnSequences(board, 'WHITE', roll, false);
+      expect(seqs.length).toBe(0);
+      const chosen = chooseBestMoveSequence(board, 'WHITE', seqs, 'GRANDMASTER');
+      expect(chosen).toBeNull();
+    }
+
+    // Roll WITH a 2: [2, 4], should have moves to enter at index 22
+    const seqsWith2 = generateLegalTurnSequences(board, 'WHITE', [2, 4], false);
+    expect(seqsWith2.length).toBeGreaterThan(0);
+    expect(seqsWith2[0].moves[0].from).toBe('BAR');
+    expect(seqsWith2[0].moves[0].to).toBe(22);
+  });
 });

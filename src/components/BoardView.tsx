@@ -209,6 +209,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
           }}
           onPointerMove={handlePointerMoveChecker}
           onPointerUp={handlePointerUpChecker}
+          onPointerCancel={handlePointerUpChecker}
           className={`w-[var(--checker-size,2rem)] h-[var(--checker-size,2rem)] rounded-full absolute left-1/2 -translate-x-1/2 flex items-center justify-center select-none ${
             isTopOfStack && isMovableTopChecker ? 'cursor-grab active:cursor-grabbing touch-none' : ''
           } ${checkerConfig.gradientClass} ${isHinted ? 'ring-2 sm:ring-4 ring-yellow-400 animate-pulse' : ''} ${

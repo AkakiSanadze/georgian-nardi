@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialBoard } from './constants';
 import { generateLegalTurnSequences } from './rules';
-import { chooseBestMoveSequence, isPureRace, evaluateBoard } from './ai';
+import { chooseBestMoveSequence, isPureRace, evaluateBoard, shouldAIOfferDavi } from './ai';
 import { BoardState, Player } from './types';
 
 describe('AI Decision Engine & Tactical Tests', () => {
@@ -75,4 +75,55 @@ describe('AI Decision Engine & Tactical Tests', () => {
     const scoreImproved = evaluateBoard(improvedBoard, 'BLACK', 'GRANDMASTER');
     expect(scoreImproved).toBeGreaterThan(scoreBase);
   });
+
+  it('runs successfully on the exact screenshot board position for Black', () => {
+    const points = Array.from({ length: 24 }, () => ({
+      owner: null as Player | null,
+      count: 0,
+    }));
+    // White:
+    points[22] = { owner: 'WHITE', count: 2 };
+    points[7] = { owner: 'WHITE', count: 2 };
+    points[5] = { owner: 'WHITE', count: 2 };
+    points[4] = { owner: 'WHITE', count: 2 };
+    points[3] = { owner: 'WHITE', count: 2 };
+    points[2] = { owner: 'WHITE', count: 4 };
+
+    // Black:
+    points[1] = { owner: 'BLACK', count: 2 };
+    points[15] = { owner: 'BLACK', count: 1 };
+    points[18] = { owner: 'BLACK', count: 2 };
+    points[19] = { owner: 'BLACK', count: 2 };
+    points[20] = { owner: 'BLACK', count: 3 };
+    points[21] = { owner: 'BLACK', count: 2 };
+    points[23] = { owner: 'BLACK', count: 3 };
+
+    const board: BoardState = {
+      points,
+      bar: { WHITE: 1, BLACK: 0 },
+      borneOff: { WHITE: 0, BLACK: 0 },
+      lockedHomeHitPoints: [],
+    };
+
+    // Test for various dice rolls
+    for (const roll of [[6, 6], [5, 5], [4, 4], [3, 3], [2, 2], [1, 1], [6, 5], [4, 2], [3, 1], [2, 1]]) {
+      const dice = roll[0] === roll[1] ? [roll[0], roll[0], roll[0], roll[0]] : roll;
+      const seqs = generateLegalTurnSequences(board, 'BLACK', dice, false);
+      const chosen = chooseBestMoveSequence(board, 'BLACK', seqs, 'GRANDMASTER');
+      if (seqs.length > 0) {
+        expect(chosen).not.toBeNull();
+      }
+    }
+
+    const daviOffer = shouldAIOfferDavi(
+      board,
+      'BLACK',
+      { level: 0, value: 1, owner: null, offeredBy: null, offeredValue: 2 },
+      { WHITE: 0, BLACK: 0, targetScore: 5, roundNumber: 1, isCrawford: false, crawfordPassed: false },
+      'SKILLED'
+    );
+    expect(typeof daviOffer).toBe('boolean');
+  });
 });
+
+
